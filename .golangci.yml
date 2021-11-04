@@ -1,0 +1,69 @@
+# spell-checker: words gocognit gocritic forbidigo setenv unmarshal gosec govet
+linters-settings:
+  gocognit:
+    min-complexity: 20
+
+  misspell:
+    locale: UK
+
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
+
+  nolintlint:
+    # Disable to ensure that all nolint directives actually have an effect. Default is true.
+    allow-unused: false
+    # Disable to ensure that nolint directives don't have a leading space. Default is true.
+    allow-leading-space: true
+    # Enable to require nolint directives to mention the specific linter being suppressed. Default is false.
+    require-specific: true
+
+linters:
+  enable-all: true
+  disable:
+    - maligned
+    - staticcheck
+    - golint
+    - forbidigo
+    - interfacer
+    - maligned
+    - scopelint
+    - stylecheck # covered by revive
+    - godot # No.
+    - gomnd # I like the idea, god this is annoying.
+    - exhaustivestruct # Nope.
+# run:
+#   max-issues-per-linter: 0
+
+issues:
+  exclude-use-default: false
+  exclude:
+    # errcheck: Almost all programs ignore errors on these functions and in most cases it's ok
+    - Error return value of .((os\.)?std(out|err)\..*|.*Close|.*Flush|os\.Remove(All)?|.*printf?|os\.(Un)?Setenv). is not checked
+
+    # Unmarshal XML and JSON are obvious in what they do. Lets not.
+    - exported method `.+\.Unmarshal(?:XML|JSON)` should have comment or be unexported
+    # golint: Annoying issue about not having a comment. The rare codebase has such comments
+    # - (comment on exported (method|function|type|const)|should have( a package)? comment|comment should be of the form)
+
+    # golint: False positive when tests are defined in package 'test'
+    - func name will be used as test\.Test.* by other packages, and that stutters; consider calling this
+
+    # govet: Common false positives
+    - (possible misuse of unsafe.Pointer|should have signature)
+
+    # gosec: Too many false-positives for parametrized shell calls
+    - Subprocess launch(ed with variable|ing should be audited)
+
+    # gosec: Duplicated errcheck checks
+    - G104
+
+    # gosec: Too many issues in popular repos
+    - (Expect directory permissions to be 0750 or less|Expect file permissions to be 0600 or less)
+
+    # gosec: False positive is triggered by 'src, err := ioutil.ReadFile(filename)'
+    - Potential file inclusion via variable
