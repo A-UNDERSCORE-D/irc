@@ -1,6 +1,7 @@
 // Package isupport contains an implementation of an ISUPPORT message handler
 package isupport
 
+// spell-checker: words isupport
 import (
 	"strings"
 	"sync"
@@ -10,26 +11,25 @@ import (
 )
 
 // ISupport represents ISUPPORT tokens from the server
-// Note that this is protected by a mutex, and it is suggested that you lock it
-// when querying, or make use of convenience methods
 type ISupport struct {
-	sync.Mutex
-	Tokens       map[string]string
-	ChannelModes []mode.ChannelMode
+	mu           sync.Mutex
+	tokens       map[string]string
+	channelModes []mode.ChannelMode
 }
 
+// New creates a new instance of ISupport ready for use
 func New() *ISupport {
-	return &ISupport{Tokens: make(map[string]string)}
+	return &ISupport{tokens: make(map[string]string)}
 }
 
 // Parse parses an RPL_ISUPPORT line into its constituent tokens, and adds them
 // to the ISupport struct
 func (i *ISupport) Parse(msg *ircmsg.Message) {
-	i.Lock()
-	defer i.Unlock()
+	i.mu.Lock()
+	defer i.mu.Unlock()
 
-	if i.Tokens == nil {
-		i.Tokens = make(map[string]string)
+	if i.tokens == nil {
+		i.tokens = make(map[string]string)
 	}
 
 	for idx := 1; idx < len(msg.Params)-1; idx++ {
@@ -43,15 +43,15 @@ func (i *ISupport) Parse(msg *ircmsg.Message) {
 
 		if name[0] == '-' {
 			// token being removed
-			delete(i.Tokens, name[1:])
+			delete(i.tokens, name[1:])
 
 			continue
 		}
 
-		i.Tokens[strings.ToLower(name)] = arg
+		i.tokens[strings.ToLower(name)] = arg
 	}
 
-	if res, ok := i.Tokens["chanmodes"]; ok {
-		i.ChannelModes = mode.ModesFromISupportToken(res)
+	if res, ok := i.tokens["chanmodes"]; ok {
+		i.channelModes = mode.ModesFromISupportToken(res)
 	}
 }
