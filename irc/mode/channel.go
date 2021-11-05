@@ -2,18 +2,23 @@ package mode
 
 import "strings"
 
-type ModeType int
+// Type is one of any of the defined mode types. There *CAN* be others, which is why this is an int
+// but I am nog really planning to test this.
+type Type int
 
+// Mode types
 const (
-	TypeA ModeType = iota
+	TypeA Type = iota
 	TypeB
 	TypeC
 	TypeD
 )
 
+// ChannelMode represents a single channel mode, its type, and the prefix its displayed with, if applicable
 type ChannelMode struct {
-	Type ModeType
-	Char string
+	Type   Type
+	Char   string
+	Prefix string
 }
 
 // ModesFromISupportToken creates a ChannelMode array from an ISUPPORT MODE token
@@ -37,13 +42,13 @@ func ModesFromISupportToken(tokenArgs string) []ChannelMode {
 	out = append(out, makeModes(D, TypeD)...)
 
 	for i, unknown := range other {
-		out = append(out, makeModes(unknown, TypeD+ModeType(i+1))...)
+		out = append(out, makeModes(unknown, TypeD+Type(i+1))...)
 	}
 
 	return out
 }
 
-func makeModes(chars string, typ ModeType) (out []ChannelMode) {
+func makeModes(chars string, typ Type) (out []ChannelMode) {
 	for _, c := range chars {
 		out = append(out, ChannelMode{
 			Type: typ,
