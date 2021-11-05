@@ -31,7 +31,6 @@ type ConnectionConfig struct {
 //
 // It expects that you do EVERYTHING yourself. It simply is a nice frontend for the socket.
 type Connection struct {
-	// TODO: ISUPPORT stuff.
 	config *ConnectionConfig
 
 	doneChan chan struct{}
@@ -169,8 +168,8 @@ outer:
 		}
 
 		s.onLine(&msg)
-
 	}
+
 	close(s.lineChan)
 	s.cancelConnCtx()
 }
