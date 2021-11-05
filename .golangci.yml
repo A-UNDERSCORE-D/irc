@@ -36,6 +36,8 @@ linters:
     - godot # No.
     - gomnd # I like the idea, god this is annoying.
     - exhaustivestruct # Nope.
+    - testpackage
+    - varnamelen # Nice idea, but slightly annoying
 # run:
 #   max-issues-per-linter: 0
 
