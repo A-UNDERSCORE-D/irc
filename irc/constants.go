@@ -4,6 +4,7 @@ package irc
 //nolint:revive // They have names for a reason.
 const (
 	RPL_WELCOME     = "001"
+	RPL_MYINFO      = "004"
 	RPL_ISUPPORT    = "005"
 	RPL_MOTD        = "372"
 	RPL_MOTDSTART   = "375"
