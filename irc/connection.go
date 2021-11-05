@@ -11,6 +11,7 @@ import (
 	"net"
 	"sync"
 
+	"awesome-dragon.science/go/irc/irc/isupport"
 	"github.com/ergochat/irc-go/ircmsg"
 )
 
@@ -30,6 +31,7 @@ type ConnectionConfig struct {
 //
 // It expects that you do EVERYTHING yourself. It simply is a nice frontend for the socket.
 type Connection struct {
+	// TODO: ISUPPORT stuff.
 	config *ConnectionConfig
 
 	doneChan chan struct{}
@@ -37,25 +39,28 @@ type Connection struct {
 	conn          net.Conn
 	connectionCtx context.Context
 	cancelConnCtx context.CancelFunc
-	lineChan      chan ircmsg.Message // Incoming lines
-	writeMutex    sync.Mutex          // Protects the write socket
+	lineChan      chan *ircmsg.Message // Incoming lines
+	writeMutex    sync.Mutex           // Protects the write socket
 
 	log *log.Logger
+
+	ISupport *isupport.ISupport
 }
 
-// NewServer creates a new Server instance ready for use
-func NewServer(config *ConnectionConfig) *Connection {
+// NewConnection creates a new Server instance ready for use
+func NewConnection(config *ConnectionConfig) *Connection {
 	return &Connection{
 		config:   config,
 		doneChan: make(chan struct{}),
-		lineChan: make(chan ircmsg.Message),
+		lineChan: make(chan *ircmsg.Message),
 		log:      log.Default(),
+		ISupport: isupport.New(),
 	}
 }
 
 // NewSimpleServer is a nice wrapper that creates a ServerConfig for you
 func NewSimpleServer(host, port string, useTLS bool) *Connection {
-	return NewServer(&ConnectionConfig{Host: host, Port: port, TLS: useTLS, DebugLog: true, RawLog: true})
+	return NewConnection(&ConnectionConfig{Host: host, Port: port, TLS: useTLS, DebugLog: true, RawLog: true})
 }
 
 func (s *Connection) debugLog(v ...interface{}) {
@@ -90,7 +95,7 @@ func (s *Connection) Connect(ctx context.Context) error {
 
 	_ = readCancel
 
-	go s.readLoop(readCtx)
+	go s.readLoop(readCtx) //nolint:contextcheck // Its because we create a NEW one that's unrelated to the Connect one
 
 	return nil
 }
@@ -163,16 +168,30 @@ outer:
 			s.log.Printf("[>>] %s", data)
 		}
 
-		s.lineChan <- msg
-	}
+		s.onLine(&msg)
 
+	}
 	close(s.lineChan)
 	s.cancelConnCtx()
+}
+
+func (s *Connection) onLine(msg *ircmsg.Message) {
+	switch msg.Command {
+	case RPL_ISUPPORT:
+		s.ISupport.Parse(msg)
+	case RPL_MYINFO:
+	}
+
+	s.lineChan <- msg
 }
 
 func (s *Connection) Write(b []byte) (int, error) {
 	s.writeMutex.Lock()
 	defer s.writeMutex.Unlock()
+
+	if s.config.RawLog {
+		s.log.Printf("[<<] %s", b)
+	}
 
 	return s.conn.Write(b) //nolint:wrapcheck // Its the usual.
 }
@@ -192,11 +211,11 @@ func (s *Connection) WriteLine(command string, args ...string) error {
 }
 
 // WriteString implements io.StringWriter
-func (s *Connection) WriteString(m string) (int, error) { return s.Write([]byte(m)) }
+func (s *Connection) WriteString(m string) (int, error) { return s.Write([]byte(m)) } //nolint:gocritic // ... No
 
 // LineChan returns a read only channel that will have messages from the server
 // sent to it
-func (s *Connection) LineChan() <-chan ircmsg.Message { return s.lineChan }
+func (s *Connection) LineChan() <-chan *ircmsg.Message { return s.lineChan }
 
 // Done returns a channel that is closed when the connection is closed.
 func (s *Connection) Done() <-chan struct{} { return s.connectionCtx.Done() }
