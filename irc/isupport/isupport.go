@@ -14,7 +14,7 @@ import (
 type ISupport struct {
 	mu           sync.Mutex
 	tokens       map[string]string
-	channelModes []mode.ChannelMode
+	channelModes mode.ModeSet
 }
 
 // New creates a new instance of ISupport ready for use
@@ -54,4 +54,12 @@ func (i *ISupport) Parse(msg *ircmsg.Message) {
 	if res, ok := i.tokens["chanmodes"]; ok {
 		i.channelModes = mode.ModesFromISupportToken(res)
 	}
+}
+
+// Modes returns the channel modes available on this ISupport struct. the returned data is a copy
+func (i *ISupport) Modes() mode.ModeSet {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	return append(mode.ModeSet(nil), i.channelModes...)
 }
