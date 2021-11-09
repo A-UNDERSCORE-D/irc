@@ -3,6 +3,7 @@ package isupport
 
 // spell-checker: words isupport
 import (
+	"strconv"
 	"strings"
 	"sync"
 
@@ -15,6 +16,7 @@ type ISupport struct {
 	mu           sync.Mutex
 	tokens       map[string]string
 	channelModes mode.ModeSet
+	// TODO: Usermodes from RPL_MYINFO
 }
 
 // New creates a new instance of ISupport ready for use
@@ -51,8 +53,30 @@ func (i *ISupport) Parse(msg *ircmsg.Message) {
 		i.tokens[strings.ToLower(name)] = arg
 	}
 
+	// Extra work for modes
 	if res, ok := i.tokens["chanmodes"]; ok {
 		i.channelModes = mode.ModesFromISupportToken(res)
+	}
+
+	if prefix := i.Prefix(); prefix != nil {
+		i.setupPrefixModes(prefix)
+	}
+}
+
+func (i *ISupport) setupPrefixModes(prefixModes map[rune]rune) {
+outer:
+	for m, p := range prefixModes {
+		for idx, real := range i.channelModes {
+			// just in case
+			if real.Char == m {
+				i.channelModes[idx].Prefix = string(p)
+
+				continue outer
+			}
+		}
+
+		// wasn't found
+		i.channelModes = append(i.channelModes, mode.Mode{Type: mode.TypeD, Char: m, Prefix: string(p)})
 	}
 }
 
@@ -62,4 +86,68 @@ func (i *ISupport) Modes() mode.ModeSet {
 	defer i.mu.Unlock()
 
 	return append(mode.ModeSet(nil), i.channelModes...)
+}
+
+// GetToken gets a token by name if it exists.
+// You will likely want to use named methods for the token you want instead,
+// assuming they exist.
+func (i *ISupport) GetToken(name string) (value string, exists bool) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	res, ok := i.tokens[strings.ToLower(name)]
+
+	return res, ok
+}
+
+// GetTokenDefault gets the given token, and returns a default if the *content*
+// of the token is "". You should verify that the token at least existed before
+// using this.
+func (i *ISupport) GetTokenDefault(name, dflt string) string {
+	res, ok := i.GetToken(name)
+	if !ok {
+		return ""
+	}
+
+	if res == "" {
+		return dflt
+	}
+
+	return res
+}
+
+func (i *ISupport) getTokenDontCare(name string) string {
+	res, _ := i.GetToken(name)
+
+	return res
+}
+
+func (i *ISupport) listToken(name string) []string {
+	return strings.Split(i.getTokenDontCare(name), "")
+}
+
+func (i *ISupport) listTokenDefault(name, dflt string) []string {
+	return strings.Split(i.GetTokenDefault(name, dflt), "")
+}
+
+// NumericToken returns the value of a token as a number, or -1 if it either
+// doesn't exist, or fails to be parsed as a base 10 number
+func (i *ISupport) NumericToken(name string) int {
+	res, ok := i.GetToken(name)
+	if !ok {
+		return -1
+	}
+
+	num, err := strconv.Atoi(res)
+	if err != nil {
+		return -1
+	}
+
+	return num
+}
+
+// HasToken returns whether or not the token exists
+func (i *ISupport) HasToken(name string) bool {
+	_, ok := i.GetToken(name)
+
+	return ok
 }
