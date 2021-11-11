@@ -5,7 +5,6 @@ import (
 	"strings"
 )
 
-// This file contains all the named getters for various ISUPPORT tokens
 // The following methods are direct methods to access "standard" ISUPPORT tokens.
 // They are in alphabetical order of the tokens, and are in the same order as
 // the definitions shown at https://modern.ircdocs.horse/#rplisupport-parameters
@@ -66,7 +65,7 @@ func (i *ISupport) ChanTypes() []string { return i.listToken("CHANTYPES") }
 func (i *ISupport) EList() []string { return i.listToken("ELIST") }
 
 // Excepts returns the mode to set ban exemptions, assuming the server supports it.
-func (i *ISupport) Excepts() []string { return i.listTokenDefault("EXCEPTS", "e") }
+func (i *ISupport) Excepts() string { return i.GetTokenDefault("EXCEPTS", "e") }
 
 // Extban returns the prefix and available extban characters
 // https://modern.ircdocs.horse/#rplisupport-parameters
@@ -113,7 +112,7 @@ func (i *ISupport) MaxListModes() map[rune]int {
 
 		if len(split) > 1 {
 			num, err := strconv.Atoi(split[1])
-			if err != nil {
+			if err == nil {
 				max = num
 			}
 		}
@@ -145,10 +144,15 @@ func (i *ISupport) Network() string { return i.getTokenDontCare("NETWORK") }
 // https://modern.ircdocs.horse/#nicklen-parameter
 func (i *ISupport) MaxNickLen() int { return i.NumericToken("NICKLEN") }
 
-// Prefix returns a map of modeChar -> prefix
-// https://modern.ircdocs.horse/#prefix-parameter
-func (i *ISupport) Prefix() map[rune]rune {
-	res, exists := i.GetToken("PREFIX")
+// internal implementation of prefix; it assumes that we're already locked, unless told otherwise
+
+func (i *ISupport) prefix(locked bool) map[rune]rune {
+	if !locked {
+		i.mu.Lock()
+		defer i.mu.Unlock()
+	}
+
+	res, exists := i.getTokenUnsafe("PREFIX")
 	if !exists {
 		return nil
 	}
@@ -157,7 +161,7 @@ func (i *ISupport) Prefix() map[rune]rune {
 
 	split := strings.Split(res[1:], ")")
 	// Just to be sure
-	if len(split) < 3 || len(split[0]) != len(split[1]) {
+	if len(split) < 2 || len(split[0]) != len(split[1]) {
 		return nil
 	}
 
@@ -167,6 +171,10 @@ func (i *ISupport) Prefix() map[rune]rune {
 
 	return out
 }
+
+// Prefix returns a map of modeChar -> prefix
+// https://modern.ircdocs.horse/#prefix-parameter
+func (i *ISupport) Prefix() map[rune]rune { return i.prefix(false) }
 
 // SafeList returns whether or not LIST usage promises to not RECVQ (disconnect
 // due to large buffer of sent data server side)
@@ -199,7 +207,7 @@ func (i *ISupport) MaxCommandTargets() map[string]int {
 
 		if len(split) > 1 {
 			realNum, err := strconv.Atoi(split[1])
-			if err != nil {
+			if err == nil {
 				num = realNum
 			}
 		}

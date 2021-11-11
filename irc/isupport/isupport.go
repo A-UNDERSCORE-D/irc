@@ -16,7 +16,6 @@ type ISupport struct {
 	mu           sync.Mutex
 	tokens       map[string]string
 	channelModes mode.ModeSet
-	// TODO: Usermodes from RPL_MYINFO
 }
 
 // New creates a new instance of ISupport ready for use
@@ -34,8 +33,8 @@ func (i *ISupport) Parse(msg *ircmsg.Message) {
 		i.tokens = make(map[string]string)
 	}
 
-	for idx := 1; idx < len(msg.Params)-1; idx++ {
-		split := strings.SplitN(msg.Params[idx], "=", 2)
+	for _, param := range msg.Params[1 : len(msg.Params)-1] {
+		split := strings.SplitN(param, "=", 2)
 		arg := ""
 		name := split[0]
 
@@ -58,14 +57,14 @@ func (i *ISupport) Parse(msg *ircmsg.Message) {
 		i.channelModes = mode.ModesFromISupportToken(res)
 	}
 
-	if prefix := i.Prefix(); prefix != nil {
+	if prefix := i.prefix(true); prefix != nil {
 		i.setupPrefixModes(prefix)
 	}
 }
 
 func (i *ISupport) setupPrefixModes(prefixModes map[rune]rune) {
 outer:
-	for m, p := range prefixModes {
+	for p, m := range prefixModes {
 		for idx, real := range i.channelModes {
 			// just in case
 			if real.Char == m {
@@ -88,15 +87,21 @@ func (i *ISupport) Modes() mode.ModeSet {
 	return append(mode.ModeSet(nil), i.channelModes...)
 }
 
+// fetches a token from the internal map, this does *NOT* interact with the mutex at all
+func (i *ISupport) getTokenUnsafe(name string) (value string, exists bool) {
+	res, ok := i.tokens[strings.ToLower(name)]
+
+	return res, ok
+}
+
 // GetToken gets a token by name if it exists.
 // You will likely want to use named methods for the token you want instead,
 // assuming they exist.
 func (i *ISupport) GetToken(name string) (value string, exists bool) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
-	res, ok := i.tokens[strings.ToLower(name)]
 
-	return res, ok
+	return i.getTokenUnsafe(name)
 }
 
 // GetTokenDefault gets the given token, and returns a default if the *content*
@@ -125,7 +130,7 @@ func (i *ISupport) listToken(name string) []string {
 	return strings.Split(i.getTokenDontCare(name), "")
 }
 
-func (i *ISupport) listTokenDefault(name, dflt string) []string {
+func (i *ISupport) listTokenDefault(name, dflt string) []string { //nolint:unused // but it might be!
 	return strings.Split(i.GetTokenDefault(name, dflt), "")
 }
 
