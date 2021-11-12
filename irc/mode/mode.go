@@ -24,7 +24,7 @@ func (t Type) String() string {
 	return strconv.Itoa(int(t))
 }
 
-var modeTypeLUT = []string{TypeA: "A", TypeB: "B", TypeC: "C", TypeD: "D"}
+var modeTypeLUT = []string{TypeA: "A", TypeB: "B", TypeC: "C", TypeD: "D"} //nolint:gochecknoglobals // its a static LUT
 
 // Mode types
 const (
@@ -52,20 +52,21 @@ func (m Mode) String() string {
 	return fmt.Sprintf("{%s: T:%s%s}", string(m.Char), m.Type, prefix)
 }
 
-// ModeSet is a []Mode with utility methods
-type ModeSet []Mode
+// Set is a []Mode with utility methods
+type Set []Mode
 
-func (m ModeSet) String() string {
+func (m Set) String() string {
 	s := make([]string, len(m))
 	for i, v := range m {
 		s[i] = v.String()
 	}
+
 	return fmt.Sprintf("[%s]", strings.Join(s, ","))
 }
 
 // GetMode returns the mode in the ModeSet represented by char, if it exists.
 // if char does not exist as a mode, its type is returned as -1
-func (m ModeSet) GetMode(char rune) Mode {
+func (m Set) GetMode(char rune) Mode {
 	for _, mode := range m {
 		if mode.Char == char {
 			return mode
@@ -81,14 +82,14 @@ func (m ModeSet) GetMode(char rune) Mode {
 
 // SequenceEntry is a list of mode changes
 type SequenceEntry struct {
-	adding bool
+	Adding bool
 	Mode
 	Parameter string
 }
 
 func (s SequenceEntry) String() string {
 	a := "+"
-	if !s.adding {
+	if !s.Adding {
 		a = "-"
 	}
 
@@ -122,17 +123,8 @@ func modeCount(s string) int {
 	return out
 }
 
+// Sequence is a sequence of mode changes
 type Sequence []SequenceEntry
-
-func (s Sequence) entryByChar(char rune) (SequenceEntry, bool) {
-	for _, m := range s {
-		if m.Char == char {
-			return m, true
-		}
-	}
-
-	return SequenceEntry{}, false
-}
 
 /*
 from https://modern.ircdocs.horse/#mode-message
@@ -156,7 +148,8 @@ There are four categories of channel modes, defined as follows:
 
 */
 
-func (s Sequence) Collapse() Sequence {
+// Collapse collapses a mode change Sequence into the eventual result of executing it
+func (s Sequence) Collapse() Sequence { //nolint:funlen,gocognit,cyclop // Its just not possible to break this up more
 	// This is a take 2, lets do this by applying ourselves to an empty sequence, and see how that goes
 	seq := Sequence{}
 
@@ -195,9 +188,8 @@ func (s Sequence) Collapse() Sequence {
 				// for this we're going to assume that unsets are correct, and sets just change it if its already set.
 				// thus, this is a noop, as theres only *one* mode here, so its either added or removed, and as the
 				// server is telling us this, we can believe it.
-
 				// we want the last one to apply, so if both ops are adding, and the params dont match, update the param
-				if other.adding && op.adding && other.Parameter != op.Parameter {
+				if other.Adding && op.Adding && other.Parameter != op.Parameter {
 					seq[i].Parameter = op.Parameter // the last one is the one that matters if adding
 				}
 
@@ -211,18 +203,17 @@ func (s Sequence) Collapse() Sequence {
 			case TypeUnknown:
 				// No idea! more lazy!
 
-			default:
-				// also no idea, but Im feeling exhaustive!
+			default: // also no idea, but Im feeling exhaustive!
 			}
 
 			switch {
-			case op.adding && other.adding:
+			case op.Adding && other.Adding:
 				continue // we're both adding the exact same thing
-			case !op.adding && other.adding:
+			case !op.Adding && other.Adding:
 				toRemove = append(toRemove, i) // we're removing whats already there, result is nothing changes
 
-			case op.adding && !other.adding:
-				seq[i].adding = true
+			case op.Adding && !other.Adding:
+				seq[i].Adding = true
 			}
 		}
 
@@ -257,7 +248,7 @@ func (s Sequence) Collapse() Sequence {
 }
 
 // ParseModeSequence parses a mode sequence to a useful set of mode changes
-func (m ModeSet) ParseModeSequence(sequence string) []SequenceEntry {
+func (m Set) ParseModeSequence(sequence string) Sequence {
 	var (
 		modes string
 		param string
@@ -266,7 +257,7 @@ func (m ModeSet) ParseModeSequence(sequence string) []SequenceEntry {
 	adding := true
 	split := strings.Split(sequence, " ")
 	modes, split = popLeft(split)
-	out := make([]SequenceEntry, 0, modeCount(modes))
+	out := make(Sequence, 0, modeCount(modes))
 
 	for _, r := range modes {
 		if r == '+' || r == '-' {
@@ -296,7 +287,7 @@ func (m ModeSet) ParseModeSequence(sequence string) []SequenceEntry {
 		}
 
 		out = append(out, SequenceEntry{
-			adding:    adding,
+			Adding:    adding,
 			Mode:      mode,
 			Parameter: param,
 		})
@@ -306,7 +297,7 @@ func (m ModeSet) ParseModeSequence(sequence string) []SequenceEntry {
 }
 
 // ModesFromISupportToken creates a Mode array from an ISUPPORT MODE token
-func ModesFromISupportToken(tokenArgs string) ModeSet {
+func ModesFromISupportToken(tokenArgs string) Set {
 	var out []Mode
 
 	split := strings.Split(tokenArgs, ",")
