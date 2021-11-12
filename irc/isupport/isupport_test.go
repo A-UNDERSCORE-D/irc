@@ -50,7 +50,7 @@ func TestISupport_Parse(t *testing.T) {
 func TestISupport_Modes(t *testing.T) {
 	t.Parallel()
 
-	wantModes := mode.ModeSet{
+	wantModes := mode.Set{
 		mode.Mode{Type: mode.TypeA, Char: 'a'},
 		mode.Mode{Type: mode.TypeB, Char: 'b'},
 		mode.Mode{Type: mode.TypeC, Char: 'c'},

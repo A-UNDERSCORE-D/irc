@@ -15,7 +15,7 @@ import (
 type ISupport struct {
 	mu           sync.Mutex
 	tokens       map[string]string
-	channelModes mode.ModeSet
+	channelModes mode.Set
 }
 
 // New creates a new instance of ISupport ready for use
@@ -80,11 +80,11 @@ outer:
 }
 
 // Modes returns the channel modes available on this ISupport struct. the returned data is a copy
-func (i *ISupport) Modes() mode.ModeSet {
+func (i *ISupport) Modes() mode.Set {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
-	return append(mode.ModeSet(nil), i.channelModes...)
+	return append(mode.Set(nil), i.channelModes...)
 }
 
 // fetches a token from the internal map, this does *NOT* interact with the mutex at all
