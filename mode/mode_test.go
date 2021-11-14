@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"awesome-dragon.science/go/irc/irc/mode"
+	"awesome-dragon.science/go/irc/mode"
 )
 
 const (

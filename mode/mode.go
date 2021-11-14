@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"awesome-dragon.science/go/irc/irc/util"
+	"awesome-dragon.science/go/irc/util"
 )
 
 // Type is one of any of the defined mode types. There *CAN* be others, which is why this is an int

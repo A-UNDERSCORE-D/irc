@@ -1,4 +1,4 @@
-package irc
+package connection
 
 import (
 	"bufio"
@@ -10,14 +10,15 @@ import (
 	"log"
 	"net"
 	"sync"
+	"time"
 
-	"awesome-dragon.science/go/irc/irc/isupport"
-	"awesome-dragon.science/go/irc/irc/numerics"
+	"awesome-dragon.science/go/irc/isupport"
+	"awesome-dragon.science/go/irc/numerics"
 	"github.com/ergochat/irc-go/ircmsg"
 )
 
-// ConnectionConfig contains all the configuration options used by Server
-type ConnectionConfig struct {
+// Config contains all the configuration options used by Server
+type Config struct {
 	Host                  string // Hostname of the target server
 	Port                  string // Server port
 	TLS                   bool   // Use TLS
@@ -32,9 +33,7 @@ type ConnectionConfig struct {
 //
 // It expects that you do EVERYTHING yourself. It simply is a nice frontend for the socket.
 type Connection struct {
-	config *ConnectionConfig
-
-	doneChan chan struct{}
+	config *Config
 
 	conn          net.Conn
 	connectionCtx context.Context
@@ -48,10 +47,9 @@ type Connection struct {
 }
 
 // NewConnection creates a new Server instance ready for use
-func NewConnection(config *ConnectionConfig) *Connection {
+func NewConnection(config *Config) *Connection {
 	return &Connection{
 		config:   config,
-		doneChan: make(chan struct{}),
 		lineChan: make(chan *ircmsg.Message),
 		log:      log.Default(),
 		ISupport: isupport.New(),
@@ -60,7 +58,7 @@ func NewConnection(config *ConnectionConfig) *Connection {
 
 // NewSimpleServer is a nice wrapper that creates a ServerConfig for you
 func NewSimpleServer(host, port string, useTLS bool) *Connection {
-	return NewConnection(&ConnectionConfig{Host: host, Port: port, TLS: useTLS, DebugLog: true, RawLog: true})
+	return NewConnection(&Config{Host: host, Port: port, TLS: useTLS, DebugLog: true, RawLog: true})
 }
 
 func (s *Connection) debugLog(v ...interface{}) {
@@ -219,3 +217,13 @@ func (s *Connection) LineChan() <-chan *ircmsg.Message { return s.lineChan }
 
 // Done returns a channel that is closed when the connection is closed.
 func (s *Connection) Done() <-chan struct{} { return s.connectionCtx.Done() }
+
+// Stop stops the connection to IRC
+func (s *Connection) Stop(msg string) {
+	s.WriteLine("QUIT", msg)
+	select {
+	case <-time.After(time.Second * 2):
+		s.cancelConnCtx()
+	case <-s.connectionCtx.Done():
+	}
+}

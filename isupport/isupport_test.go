@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"testing"
 
-	"awesome-dragon.science/go/irc/irc/isupport"
-	"awesome-dragon.science/go/irc/irc/mode"
+	"awesome-dragon.science/go/irc/isupport"
+	"awesome-dragon.science/go/irc/mode"
 	"github.com/ergochat/irc-go/ircmsg"
 )
 

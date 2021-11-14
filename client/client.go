@@ -1,4 +1,4 @@
-package irc
+package client
 
 import (
 	"context"
@@ -6,10 +6,12 @@ import (
 	"log"
 	"sync"
 
-	"awesome-dragon.science/go/irc/irc/capab"
-	"awesome-dragon.science/go/irc/irc/event"
-	"awesome-dragon.science/go/irc/irc/mode"
-	"awesome-dragon.science/go/irc/irc/numerics"
+	"awesome-dragon.science/go/irc/capab"
+	"awesome-dragon.science/go/irc/connection"
+	"awesome-dragon.science/go/irc/event"
+	"awesome-dragon.science/go/irc/mode"
+	"awesome-dragon.science/go/irc/numerics"
+	"awesome-dragon.science/go/irc/oper"
 	"github.com/ergochat/irc-go/ircmsg"
 	"github.com/ergochat/irc-go/ircutils"
 )
@@ -18,7 +20,7 @@ import (
 
 // ClientConfig contains all configuration options for Client
 type ClientConfig struct {
-	Connection ConnectionConfig
+	Connection connection.Config
 
 	ServerPassword string
 
@@ -46,7 +48,7 @@ func NewClient(config *ClientConfig) *Client {
 	}
 
 	c := &Client{
-		connection:   NewConnection(&config.Connection),
+		connection:   connection.NewConnection(&config.Connection),
 		config:       config,
 		log:          log.Default(),
 		EventManager: event.NewManager(),
@@ -64,7 +66,7 @@ func NewClient(config *ClientConfig) *Client {
 	}, c)
 
 	go func() {
-		for line := range c.connection.lineChan {
+		for line := range c.connection.LineChan() {
 			c.onMessage(line)
 		}
 	}()
@@ -75,7 +77,7 @@ func NewClient(config *ClientConfig) *Client {
 // Client is a full fledged IRC "client". It handles a bit of bookkeeping itself
 // and provides a frontend for an event system that you can run your own code on
 type Client struct {
-	connection *Connection
+	connection *connection.Connection
 	config     *ClientConfig
 
 	log                  *log.Logger
@@ -86,6 +88,7 @@ type Client struct {
 	nickname string   // the *current* nickname
 	channels []string // channels we're in
 	oper     bool
+	operMech oper.Mechanism
 	umodes   []mode.Mode
 }
 
@@ -109,13 +112,13 @@ func (c *Client) Run() error {
 	c.capabilityNegotiator.Negotiate()
 
 	if err := c.Write("NICK", c.config.Nickname); err != nil {
-		c.connection.conn.Close()
+		c.connection.Stop("")
 
 		return fmt.Errorf("could not write NICK command: %w", err)
 	}
 
 	if err := c.Write("USER", c.config.Username, "*", "*", c.config.Realname); err != nil {
-		c.connection.conn.Close()
+		c.connection.Stop("")
 
 		return fmt.Errorf("could not write USER command: %w", err)
 	}
@@ -196,8 +199,6 @@ func (c *Client) onPart(msg *ircmsg.Message) {
 // TODO:
 // - RPL_YOUREOPER
 // - umodes
-// - caps
-// - sasl
 
 // Write writes an IRC command to the Server
 func (c *Client) Write(command string, args ...string) error {

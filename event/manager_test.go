@@ -1,5 +1,5 @@
 // Package event defines a simple event system for use with irc
-package event
+package event_test
 
 import (
 	"reflect"
@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"awesome-dragon.science/go/irc/event"
 	"github.com/ergochat/irc-go/ircmsg"
 )
 
@@ -17,7 +18,7 @@ func TestManager_Fire(t *testing.T) {
 
 	t.Run("multiple", func(t *testing.T) {
 		t.Parallel()
-		manager := NewManager()
+		manager := event.NewManager()
 		count := 0
 		total := 10
 		for i := 0; i < total; i++ {
@@ -34,7 +35,7 @@ func TestManager_Fire(t *testing.T) {
 	t.Run("multiple goroutine", func(t *testing.T) {
 		t.Parallel()
 
-		m := NewManager()
+		m := event.NewManager()
 		wg := sync.WaitGroup{}
 		total := 10
 		donechan := make(chan int)
@@ -67,7 +68,7 @@ func TestManager_RemoveCallback(t *testing.T) {
 	t.Run("exists", func(t *testing.T) {
 		t.Parallel()
 
-		manager := NewManager()
+		manager := event.NewManager()
 
 		res := manager.AddCallback("test", func(*ircmsg.Message) {}, false)
 		if manager.GetEvent(res) == nil {
@@ -84,7 +85,7 @@ func TestManager_RemoveCallback(t *testing.T) {
 	t.Run("not exist", func(t *testing.T) {
 		t.Parallel()
 
-		m := NewManager()
+		m := event.NewManager()
 		m.RemoveCallback(1337) // Doesn't exist, should not error
 	})
 }
@@ -93,18 +94,18 @@ func TestManager_GetEvent_AddCallback(t *testing.T) {
 	t.Parallel()
 	t.Run("Exists", func(t *testing.T) {
 		t.Parallel()
-		m := NewManager()
+		m := event.NewManager()
 		cb := func(msg *ircmsg.Message) {}
 		res := m.AddCallback("test", cb, false)
 
-		if ev := (m.GetEvent(res)); ev == nil || reflect.DeepEqual(cb, ev.callback) || ev.id != res {
+		if ev := (m.GetEvent(res)); ev == nil || reflect.DeepEqual(cb, ev.Func()) || ev.ID() != res {
 			t.Fatalf("GetEvent returned unexpected result %#v", ev)
 		}
 	})
 
 	t.Run("No Exist", func(t *testing.T) {
 		t.Parallel()
-		m := NewManager()
+		m := event.NewManager()
 		if ev := m.GetEvent(1337); ev != nil {
 			t.Fatalf("GetEvent expected nil")
 		}
@@ -114,7 +115,7 @@ func TestManager_GetEvent_AddCallback(t *testing.T) {
 func TestManager_AddOneShotCallback(t *testing.T) {
 	t.Parallel()
 
-	m := NewManager()
+	m := event.NewManager()
 	called := 0
 
 	m.AddOneShotCallback("test", func(*ircmsg.Message) { called++ }, false)
@@ -131,7 +132,7 @@ func TestManager_AddOneShotCallback(t *testing.T) {
 func TestManager_WaitFor(t *testing.T) {
 	t.Parallel()
 
-	m := NewManager()
+	m := event.NewManager()
 	c := m.WaitFor("test")
 	done := make(chan bool)
 
