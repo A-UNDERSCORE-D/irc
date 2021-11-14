@@ -10,3 +10,14 @@ func IntSliceContains(i int, slice []int) bool {
 
 	return false
 }
+
+// StringSliceContains is IntSliceContains, but for strings. I need generics -_-
+func StringSliceContains(s string, slice []string) bool {
+	for _, v := range slice {
+		if v == s {
+			return true
+		}
+	}
+
+	return false
+}

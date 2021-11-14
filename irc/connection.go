@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"awesome-dragon.science/go/irc/irc/isupport"
+	"awesome-dragon.science/go/irc/irc/numerics"
 	"github.com/ergochat/irc-go/ircmsg"
 )
 
@@ -176,9 +177,9 @@ outer:
 
 func (s *Connection) onLine(msg *ircmsg.Message) {
 	switch msg.Command {
-	case RPL_ISUPPORT:
+	case numerics.RPL_ISUPPORT:
 		s.ISupport.Parse(msg)
-	case RPL_MYINFO:
+	case numerics.RPL_MYINFO:
 	}
 
 	s.lineChan <- msg

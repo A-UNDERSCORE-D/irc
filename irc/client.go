@@ -6,7 +6,10 @@ import (
 	"log"
 	"sync"
 
-	"awesome-dragon.science/go/irc/event"
+	"awesome-dragon.science/go/irc/irc/capab"
+	"awesome-dragon.science/go/irc/irc/event"
+	"awesome-dragon.science/go/irc/irc/mode"
+	"awesome-dragon.science/go/irc/irc/numerics"
 	"github.com/ergochat/irc-go/ircmsg"
 	"github.com/ergochat/irc-go/ircutils"
 )
@@ -26,25 +29,39 @@ type ClientConfig struct {
 	CTCPResponses map[string]string
 
 	SASL               bool
-	SASLMech           string
 	NickServAuthUser   string
 	NickServAuthPasswd string
+	SASLCertPath       string
+	SASLCertKeyPath    string
+	SASLCertPasswd     string
 
 	JoinChannels []string
+	Capabilities []string
 }
 
 // NewClient creates a new client that is ready to use
 func NewClient(config *ClientConfig) *Client {
+	if config.SASL {
+		config.Capabilities = append(config.Capabilities, "sasl")
+	}
+
 	c := &Client{
 		connection:   NewConnection(&config.Connection),
 		config:       config,
 		log:          log.Default(),
-		eventManager: event.NewManager(),
+		EventManager: event.NewManager(),
 	}
 
-	c.eventManager.AddCallback("NICK", c.onNick, false)
-	c.eventManager.AddCallback("JOIN", c.onJoin, false)
-	c.eventManager.AddCallback("PART", c.onPart, false)
+	c.EventManager.AddCallback("NICK", c.onNick, false)
+	c.EventManager.AddCallback("JOIN", c.onJoin, false)
+	c.EventManager.AddCallback("PART", c.onPart, false)
+
+	c.capabilityNegotiator = capab.New(&capab.Config{
+		ToRequest:    config.Capabilities,
+		SASL:         config.NickServAuthPasswd != "" && config.NickServAuthUser != "",
+		SASLUsername: config.NickServAuthUser,
+		SASLPassword: config.NickServAuthUser,
+	}, c)
 
 	go func() {
 		for line := range c.connection.lineChan {
@@ -61,12 +78,15 @@ type Client struct {
 	connection *Connection
 	config     *ClientConfig
 
-	log          *log.Logger
-	eventManager *event.Manager
+	log                  *log.Logger
+	EventManager         *event.Manager
+	capabilityNegotiator *capab.Negotiator
 
+	mu       sync.Mutex
 	nickname string   // the *current* nickname
 	channels []string // channels we're in
-	mu       sync.Mutex
+	oper     bool
+	umodes   []mode.Mode
 }
 
 // Connect connects the Client to IRC.
@@ -86,6 +106,8 @@ func (c *Client) Run() error {
 		return fmt.Errorf("could not connect: %w", err)
 	}
 
+	c.capabilityNegotiator.Negotiate()
+
 	if err := c.Write("NICK", c.config.Nickname); err != nil {
 		c.connection.conn.Close()
 
@@ -98,10 +120,10 @@ func (c *Client) Run() error {
 		return fmt.Errorf("could not write USER command: %w", err)
 	}
 
-	<-c.eventManager.WaitFor("001")
+	<-c.EventManager.WaitFor("001")
 	c.log.Print("CONNECTED!!!!!!!!!!!!!!")
-	<-c.eventManager.WaitFor(RPL_ENDOFMOTD)
-	c.log.Print(c.connection.ISupport)
+	<-c.EventManager.WaitFor(numerics.RPL_ENDOFMOTD)
+	c.log.Print(c.connection.ISupport.Modes())
 
 	<-c.connection.Done()
 
@@ -119,7 +141,7 @@ func (c *Client) onMessage(msg *ircmsg.Message) {
 		c.log.Printf("ERROR from server: %v", msg)
 	}
 
-	c.eventManager.Fire(msg.Command, msg)
+	c.EventManager.Fire(msg.Command, msg)
 }
 
 func (c *Client) fromMe(msg *ircmsg.Message) bool {
@@ -174,7 +196,6 @@ func (c *Client) onPart(msg *ircmsg.Message) {
 // TODO:
 // - RPL_YOUREOPER
 // - umodes
-// - Modes, in general, I guess.
 // - caps
 // - sasl
 
@@ -189,4 +210,16 @@ func (c *Client) Nick() string {
 	defer c.mu.Unlock()
 
 	return c.nickname
+}
+
+func (c *Client) AddCallback(name string, f func(*ircmsg.Message), concurrent bool) int {
+	return c.EventManager.AddCallback(name, f, concurrent)
+}
+
+func (c *Client) RemoveCallback(id int) {
+	c.EventManager.RemoveCallback(id)
+}
+
+func (c *Client) AddOneShotCallback(name string, f func(*ircmsg.Message), concurrent bool) int {
+	return c.EventManager.AddOneShotCallback(name, f, concurrent)
 }

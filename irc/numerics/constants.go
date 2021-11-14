@@ -1,4 +1,4 @@
-package irc
+package numerics
 
 // Stolen from ircstates
 //nolint:revive // They have names for a reason.
