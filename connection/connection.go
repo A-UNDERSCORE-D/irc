@@ -220,7 +220,10 @@ func (s *Connection) Done() <-chan struct{} { return s.connectionCtx.Done() }
 
 // Stop stops the connection to IRC
 func (s *Connection) Stop(msg string) {
-	s.WriteLine("QUIT", msg)
+	if err := s.WriteLine("QUIT", msg); err != nil {
+		log.Printf("Failed to write quit while exiting: %s", err)
+	}
+
 	select {
 	case <-time.After(time.Second * 2):
 		s.cancelConnCtx()

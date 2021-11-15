@@ -11,12 +11,18 @@ import (
 	"awesome-dragon.science/go/irc/event"
 	"awesome-dragon.science/go/irc/mode"
 	"awesome-dragon.science/go/irc/numerics"
-	"awesome-dragon.science/go/irc/oper"
 	"github.com/ergochat/irc-go/ircmsg"
 	"github.com/ergochat/irc-go/ircutils"
 )
 
 // spell-checker: words sasl
+
+var DefaultCapabilities = []string{
+	"account-notify", "away-notify", "chghost", "extended-join",
+	"multi-prefix", "sasl", "account-tag",
+
+	"solanum.chat/identify-msg", "solanum.chat/oper", "solanum.chat/realhost",
+}
 
 // ClientConfig contains all configuration options for Client
 type ClientConfig struct {
@@ -87,9 +93,9 @@ type Client struct {
 	mu       sync.Mutex
 	nickname string   // the *current* nickname
 	channels []string // channels we're in
-	oper     bool
-	operMech oper.Mechanism
 	umodes   []mode.Mode
+
+	nicHooks hooks
 }
 
 // Connect connects the Client to IRC.

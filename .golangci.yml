@@ -37,7 +37,7 @@ linters:
     - gomnd # I like the idea, god this is annoying.
     - exhaustivestruct # Nope.
     - vet
-    # - varnamelen # Nice idea, but slightly annoying
+    - varnamelen # Nice idea, but slightly annoying
     # - goanalysis_metalinter
     # - goanalysis
 # run:
