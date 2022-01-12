@@ -26,7 +26,7 @@ linters:
   enable-all: true
   disable:
     - maligned
-    - staticcheck
+    # - staticcheck
     - golint
     - forbidigo
     - interfacer
