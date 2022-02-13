@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"sync"
 	"time"
@@ -15,7 +14,10 @@ import (
 	"awesome-dragon.science/go/irc/isupport"
 	"awesome-dragon.science/go/irc/numerics"
 	"github.com/ergochat/irc-go/ircmsg"
+	"github.com/op/go-logging"
 )
+
+var log = logging.MustGetLogger("irc") //nolint:gochecknoglobals // Its the logger.
 
 // Config contains all the configuration options used by Server
 type Config struct {
@@ -26,7 +28,6 @@ type Config struct {
 	TLSCertPath           string
 	TLSKeyPath            string
 	RawLog                bool // Log raw messages
-	DebugLog              bool // Log additional debug messages
 }
 
 // Connection implements the barebones required to make a connection to an IRC server.
@@ -41,8 +42,6 @@ type Connection struct {
 	lineChan      chan *ircmsg.Message // Incoming lines
 	writeMutex    sync.Mutex           // Protects the write socket
 
-	log *log.Logger
-
 	ISupport *isupport.ISupport
 }
 
@@ -51,39 +50,27 @@ func NewConnection(config *Config) *Connection {
 	return &Connection{
 		config:   config,
 		lineChan: make(chan *ircmsg.Message),
-		log:      log.Default(),
 		ISupport: isupport.New(),
 	}
 }
 
 // NewSimpleServer is a nice wrapper that creates a ServerConfig for you
 func NewSimpleServer(host, port string, useTLS bool) *Connection {
-	return NewConnection(&Config{Host: host, Port: port, TLS: useTLS, DebugLog: true, RawLog: true})
-}
-
-func (s *Connection) debugLog(v ...interface{}) {
-	if s.config.DebugLog {
-		s.log.Print(v...)
-	}
-}
-
-func (s *Connection) debugLogf(format string, v ...interface{}) {
-	if s.config.DebugLog {
-		s.log.Printf(format, v...)
-	}
+	return NewConnection(&Config{Host: host, Port: port, TLS: useTLS, RawLog: true})
 }
 
 // Connect connects the Server instance to IRC. It does NOT block.
 func (s *Connection) Connect(ctx context.Context) error {
-	s.debugLog("Opening connection")
+	connContext, cancel := context.WithTimeout(ctx, time.Second*10)
+	_ = cancel
 
-	conn, err := s.openConn(ctx)
+	conn, err := s.openConn(connContext)
 	if err != nil {
 		return fmt.Errorf("could not open connection: %w", err)
 	}
 
 	s.conn = conn
-	mainCtx, mainCancel := context.WithCancel(context.Background())
+	mainCtx, mainCancel := context.WithCancel(ctx)
 
 	s.connectionCtx = mainCtx
 	s.cancelConnCtx = mainCancel
@@ -93,7 +80,7 @@ func (s *Connection) Connect(ctx context.Context) error {
 
 	_ = readCancel
 
-	go s.readLoop(readCtx) //nolint:contextcheck // Its because we create a NEW one that's unrelated to the Connect one
+	go s.readLoop(readCtx)
 
 	return nil
 }
@@ -105,7 +92,7 @@ func (s *Connection) openConn(ctx context.Context) (net.Conn, error) {
 		hostPort = net.JoinHostPort(s.config.Host, s.config.Port)
 	)
 
-	s.debugLogf("Opening connection to %q...", hostPort)
+	log.Debugf("Opening connection to %q...", hostPort)
 
 	if s.config.TLS {
 		dialer := &tls.Dialer{}
@@ -150,20 +137,20 @@ outer:
 				break
 			}
 
-			s.log.Printf("Unexpected error from conn.Read: %s", err)
+			log.Warningf("Unexpected error from conn.Read: %s", err)
 
 			break
 		}
 
 		msg, err := ircmsg.ParseLine(data)
 		if err != nil {
-			s.log.Printf("got an invalid IRC Line: %q -> %s", data, err)
+			log.Warningf("got an invalid IRC Line: %q -> %s", data, err)
 
 			continue
 		}
 
 		if s.config.RawLog {
-			s.log.Printf("[>>] %s", data)
+			log.Infof("[>>] %s", data)
 		}
 
 		s.onLine(&msg)
@@ -188,10 +175,15 @@ func (s *Connection) Write(b []byte) (int, error) {
 	defer s.writeMutex.Unlock()
 
 	if s.config.RawLog {
-		s.log.Printf("[<<] %s", b)
+		log.Infof("[<<] %s", b)
 	}
 
-	return s.conn.Write(b) //nolint:wrapcheck // Its the usual.
+	n, err := s.conn.Write(b)
+	if err != nil {
+		return n, fmt.Errorf("Connection.Write: %w", err)
+	}
+
+	return n, nil
 }
 
 // WriteLine constructs an ircmsg.Message and sends it to the server
@@ -204,8 +196,11 @@ func (s *Connection) WriteLine(command string, args ...string) error {
 	}
 
 	_, err = s.Write(bytes)
+	if err != nil {
+		return fmt.Errorf("WriteLine: Could not send line: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 // WriteString implements io.StringWriter
@@ -221,7 +216,7 @@ func (s *Connection) Done() <-chan struct{} { return s.connectionCtx.Done() }
 // Stop stops the connection to IRC
 func (s *Connection) Stop(msg string) {
 	if err := s.WriteLine("QUIT", msg); err != nil {
-		log.Printf("Failed to write quit while exiting: %s", err)
+		log.Infof("Failed to write quit while exiting: %s", err)
 	}
 
 	select {
