@@ -14,7 +14,11 @@ import (
 func (n *Negotiator) doSasl() error {
 	saslCap := n.capByName("sasl")
 
-	if !n.config.SASL || saslCap == nil || !saslCap.acknowledged {
+	if !n.config.SASL {
+		return nil // Not supposed to, dont return an error
+	}
+
+	if saslCap == nil || !saslCap.Acknowledged {
 		// either we're not supposed to, or its not available
 		return ErrSASLNotSupported
 	}
@@ -24,7 +28,7 @@ func (n *Negotiator) doSasl() error {
 		mech = "PLAIN"
 	}
 
-	supportedMechs := strings.Split(saslCap.value, ",")
+	supportedMechs := strings.Split(saslCap.Value, ",")
 
 	if !util.StringSliceContains(mech, supportedMechs) {
 		return ErrSASLMechNotSupported
@@ -32,7 +36,11 @@ func (n *Negotiator) doSasl() error {
 
 	switch mech {
 	case "PLAIN":
-		return n.doSaslPLAIN(n.config.SASLUsername, n.config.SASLPassword)
+		c := make(chan error)
+
+		go func() { c <- n.doSaslPLAIN(n.config.SASLUsername, n.config.SASLPassword) }()
+
+		return <-c
 
 	default:
 		return ErrSASLMechNotSupported
@@ -59,27 +67,38 @@ func (n *Negotiator) doSaslPLAIN(username, password string) error {
 
 	authChan := make(chan string)
 
-	n.client.AddOneShotCallback(
+	var authenticateID, authGoodID, authBadID int
+
+	authenticateID = n.eventManager.AddCallback(
 		"AUTHENTICATE",
-		func(msg *ircmsg.Message) { authChan <- msg.Params[len(msg.Params)-1] },
-		true,
+		func(msg *ircmsg.Message) error {
+			authChan <- msg.Params[len(msg.Params)-1]
+			n.eventManager.RemoveCallback(authenticateID)
+
+			return nil
+		},
 	)
 
-	authGood := n.client.AddOneShotCallback(
-		numerics.RPL_SASLSUCCESS, func(*ircmsg.Message) { authChan <- "GOOD" }, true,
+	authGoodID = n.eventManager.AddCallback(
+		numerics.RPL_SASLSUCCESS,
+		func(*ircmsg.Message) error { authChan <- "GOOD"; n.eventManager.RemoveCallback(authGoodID); return nil },
 	)
-	authBad := n.client.AddOneShotCallback(numerics.ERR_SASLFAIL, func(*ircmsg.Message) { authChan <- "BAD" }, true)
 
-	defer n.client.RemoveCallback(authGood)
-	defer n.client.RemoveCallback(authBad)
+	authBadID = n.eventManager.AddCallback(
+		numerics.ERR_SASLFAIL,
+		func(*ircmsg.Message) error { authChan <- "BAD"; n.eventManager.RemoveCallback(authBadID); return nil },
+	)
 
-	_ = n.client.Write("AUTHENTICATE", "PLAIN")
+	defer n.eventManager.RemoveCallback(authGoodID)
+	defer n.eventManager.RemoveCallback(authBadID)
+
+	_ = n.writeIRC("AUTHENTICATE", "PLAIN")
 
 	if res := <-authChan; res != "+" {
 		return fmt.Errorf("server returned unexpected data %q: %w", res, ErrSASLFailed)
 	}
 
-	_ = n.client.Write("AUTHENTICATE", makePlainAuth(username, password))
+	_ = n.writeIRC("AUTHENTICATE", makePlainAuth(username, password))
 
 	switch res := <-authChan; res {
 	case "GOOD":

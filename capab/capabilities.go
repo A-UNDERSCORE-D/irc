@@ -1,21 +1,27 @@
 package capab
 
 import (
-	"log"
 	"strings"
 	"sync"
 
 	"awesome-dragon.science/go/irc/numerics"
 	"github.com/ergochat/irc-go/ircmsg"
+	"github.com/op/go-logging"
 )
+
+var log = logging.MustGetLogger("ircCapab")
 
 // minClient is the smallest interface required to make Negotiator work
 type minClient interface {
-	AddCallback(string, func(*ircmsg.Message), bool) int
+	AddCallback(string, func(*ircmsg.Message)) int
 	RemoveCallback(int)
-	AddOneShotCallback(string, func(*ircmsg.Message), bool) int
 
-	Write(string, ...string) error
+	WriteIRC(string, ...string) error
+}
+
+type eventManager interface {
+	AddCallback(string, func(*ircmsg.Message) error) int
+	RemoveCallback(int)
 }
 
 // Config contains the configuration options for the Negotiator struct
@@ -30,26 +36,28 @@ type Config struct {
 	// TODO: keys
 }
 
-type capability struct {
-	name         string
-	value        string
-	available    bool
-	request      bool
-	acknowledged bool
+// Capability represents a single IRCv3 capability
+type Capability struct {
+	Name         string
+	Value        string
+	Available    bool
+	Request      bool
+	Acknowledged bool
 }
 
-func (c *capability) String() string {
-	return c.name
+func (c *Capability) String() string {
+	return c.Name
 }
 
 // Negotiator negotiates IRCv3 capabilities over a Client instance
 type Negotiator struct {
 	mu sync.Mutex
 
-	client minClient
-	config *Config
+	eventManager eventManager
+	writeIRC     func(string, ...string) error
+	config       *Config
 
-	capabilities []*capability
+	capabilities []*Capability
 	incomingCaps []string
 
 	doingNegotiation bool
@@ -57,13 +65,16 @@ type Negotiator struct {
 }
 
 // New creates a new Negotiator instance
-func New(conf *Config, client minClient) *Negotiator {
-	out := &Negotiator{config: conf}
-	for _, c := range conf.ToRequest {
-		out.capabilities = append(out.capabilities, &capability{name: c, request: true})
+func New(conf *Config, writeToIRC func(string, ...string) error, eventManager eventManager) *Negotiator {
+	out := &Negotiator{
+		config:       conf,
+		writeIRC:     writeToIRC,
+		eventManager: eventManager,
 	}
 
-	out.client = client
+	for _, c := range conf.ToRequest {
+		out.capabilities = append(out.capabilities, &Capability{Name: c, Request: true})
+	}
 
 	return out
 }
@@ -74,11 +85,11 @@ func (n *Negotiator) Negotiate() {
 	n.doNegotiation()
 
 	if err := n.doSasl(); err != nil {
-		log.Printf("Failed SASL: %s", err)
+		log.Errorf("Failed SASL: %s", err)
 	}
 
 	// Add NEW/DEL
-	n.client.AddCallback("CAP", func(msg *ircmsg.Message) {
+	n.eventManager.AddCallback("CAP", func(msg *ircmsg.Message) error {
 		split := strings.Split(msg.Params[len(msg.Params)-1], " ")
 
 		switch cmd := msg.Params[1]; cmd {
@@ -87,27 +98,56 @@ func (n *Negotiator) Negotiate() {
 		case "DEL":
 			n.onCapDEL(split)
 		}
-	}, true)
 
-	_ = n.client.Write("CAP", "END")
+		return nil
+	})
+
+	_ = n.writeIRC("CAP", "END")
+}
+
+// AvailableCaps returns a list of capabilities that have been requested and acknowledged by the server
+func (n *Negotiator) AvailableCaps() []Capability {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	out := []Capability{} // explicitly not a pointer, we want copies in here
+
+	for _, c := range n.capabilities {
+		if c.Acknowledged {
+			out = append(out, *c)
+		}
+	}
+
+	return out
 }
 
 func (n *Negotiator) doNegotiation() {
 	msgChan := make(chan *ircmsg.Message)
 
-	capCallback := n.client.AddCallback("CAP", func(msg *ircmsg.Message) { msgChan <- msg }, false)
-	welcomeCallback := n.client.AddCallback(numerics.RPL_WELCOME, nil, false)
+	capCallback := n.eventManager.AddCallback("CAP", func(msg *ircmsg.Message) error {
+		msgChan <- msg
 
-	defer n.client.RemoveCallback(capCallback)
-	defer n.client.RemoveCallback(welcomeCallback)
+		return nil
+	})
+	welcomeCallback := n.eventManager.AddCallback(
+		numerics.RPL_WELCOME,
+		func(msg *ircmsg.Message) error {
+			msgChan <- msg
+
+			return nil
+		},
+	)
+
+	defer n.eventManager.RemoveCallback(capCallback)
+	defer n.eventManager.RemoveCallback(welcomeCallback)
 	n.doingNegotiation = true
-	_ = n.client.Write("CAP", "LS", "302")
+	_ = n.writeIRC("CAP", "LS", "302")
 
 	for n.doingNegotiation {
 		msg := <-msgChan
 
 		if msg.Command == numerics.RPL_WELCOME {
-			log.Printf("Got unexpected 001. Assuming the server does not support capabilities")
+			log.Warning("Got unexpected 001. Assuming the server does not support capabilities")
 
 			break
 		}
@@ -131,7 +171,7 @@ func (n *Negotiator) doNegotiation() {
 		case "NEW":
 			n.onCapNEW(split)
 		default:
-			log.Printf("Unknown CAP command %q. ignoring", cmd)
+			log.Infof("Unknown CAP command %q. ignoring", cmd)
 		}
 	}
 }
@@ -144,17 +184,17 @@ func (n *Negotiator) onCapLS(caps []string, moreComing bool) {
 	}
 
 	// No more coming
-	log.Printf("Server offered caps %v", n.incomingCaps)
+	log.Infof("Server offered caps %v", n.incomingCaps)
 	n.parseCaps()
 	n.incomingCaps = nil // clear this for use in ACK later
 	n.requestCaps()
 }
 
 func (n *Negotiator) requestCaps() {
-	var toRequest []*capability
+	var toRequest []*Capability
 
 	for _, c := range n.capabilities {
-		if c.request && c.available {
+		if c.Request && c.Available {
 			toRequest = append(toRequest, c)
 		}
 	}
@@ -165,23 +205,23 @@ func (n *Negotiator) requestCaps() {
 	)
 
 	for _, c := range toRequest {
-		if builder.Len()+len(c.name) >= 450 {
+		if builder.Len()+len(c.Name) >= 450 {
 			lines = append(lines, strings.TrimSpace(builder.String()))
 			builder.Reset()
 		}
 
-		builder.WriteString(c.name)
+		builder.WriteString(c.Name)
 		builder.WriteRune(' ')
 	}
 
 	lines = append(lines, strings.TrimSpace(builder.String()))
 
-	log.Printf("Requesting capabilities %v", toRequest)
+	log.Infof("Requesting capabilities %v", toRequest)
 
 	n.reqsSent += len(lines)
 
 	for _, l := range lines {
-		_ = n.client.Write("CAP", "REQ", l)
+		_ = n.writeIRC("CAP", "REQ", l)
 	}
 }
 
@@ -197,25 +237,25 @@ func (n *Negotiator) parseCaps() {
 		}
 
 		if c := n.capByName(name); c != nil {
-			c.available = true
-			c.value = value
+			c.Available = true
+			c.Value = value
 
 			continue
 		}
 
-		n.capabilities = append(n.capabilities, &capability{
-			name:         name,
-			value:        value,
-			available:    true,
-			request:      false,
-			acknowledged: false,
+		n.capabilities = append(n.capabilities, &Capability{
+			Name:         name,
+			Value:        value,
+			Available:    true,
+			Request:      false,
+			Acknowledged: false,
 		})
 	}
 }
 
-func (n *Negotiator) capByName(name string) *capability {
+func (n *Negotiator) capByName(name string) *Capability {
 	for _, capab := range n.capabilities {
-		if capab.name == name {
+		if capab.Name == name {
 			return capab
 		}
 	}
@@ -233,30 +273,32 @@ func (n *Negotiator) onCapACK(caps []string) {
 	}
 
 	// no more coming
-	ackedCaps := make([]*capability, 0, len(n.incomingCaps))
+	ackedCaps := make([]*Capability, 0, len(n.incomingCaps))
 
 	for _, cName := range n.incomingCaps {
 		c := n.capByName(cName)
 		ackedCaps = append(ackedCaps, c)
 
 		if c != nil {
-			c.acknowledged = true
+			c.Acknowledged = true
 		} else {
-			log.Printf("Got an ACK for a CAP %q we dont know about! ignoring!", cName)
+			log.Warningf("Got an ACK for a CAP %q we dont know about! ignoring!", cName)
 		}
 	}
 
-	log.Printf("Server ack'd caps: %v", ackedCaps)
+	log.Infof("Server ack'd caps: %v", ackedCaps)
 
 	n.doingNegotiation = false
 }
 
 func (n *Negotiator) onCapNAK(split []string) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
 	// this shouldnt be possible, but if it is, do nothing, the outer client can handle this
 	n.reqsSent--
 	for _, v := range split {
 		if c := n.capByName(v); c != nil {
-			c.acknowledged = false
+			c.Acknowledged = false
 		}
 	}
 }
@@ -267,10 +309,10 @@ func (n *Negotiator) onCapDEL(caps []string) {
 
 	for _, v := range caps {
 		if c := n.capByName(v); c != nil {
-			c.available = false
-			c.acknowledged = false
+			c.Available = false
+			c.Acknowledged = false
 		} else {
-			log.Printf("unknown cap %q DELeted", v)
+			log.Warningf("unknown cap %q DELeted", v)
 		}
 	}
 }
@@ -291,13 +333,13 @@ func (n *Negotiator) onCapNEW(caps []string) {
 		}
 
 		if c := n.capByName(v); c != nil {
-			c.available = true
-			c.value = value
+			c.Available = true
+			c.Value = value
 		} else {
-			n.capabilities = append(n.capabilities, &capability{
-				name:      name,
-				value:     value,
-				available: true,
+			n.capabilities = append(n.capabilities, &Capability{
+				Name:      name,
+				Value:     value,
+				Available: true,
 			})
 		}
 	}
