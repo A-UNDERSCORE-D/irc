@@ -133,3 +133,11 @@ loop:
 func (c *Client) WriteIRC(command string, params ...string) error {
 	return fmt.Errorf("WriteIRC: %w", c.connection.WriteLine(command, params...))
 }
+
+func (c *Client) SendMessage(target, message string) error {
+	return c.WriteIRC("PRIVMSG", target, message)
+}
+
+func (c *Client) SendNotice(target, message string) error {
+	return c.WriteIRC("NOTICE", target, message)
+}
