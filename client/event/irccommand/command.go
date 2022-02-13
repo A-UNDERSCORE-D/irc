@@ -90,6 +90,7 @@ func (h *Handler) AddCallback(command string, callback event.CallbackFunc) int {
 	return h.lastID
 }
 
+// Remove a callback from the Handler instance
 func (h *Handler) RemoveCallback(id int) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -97,4 +98,35 @@ func (h *Handler) RemoveCallback(id int) {
 	for _, callbackMap := range h.hooks {
 		delete(callbackMap, id) // there will never be a duplicated ID so this is fine
 	}
+
+	commandNames := make([]string, 0, len(h.hooks))
+	for k := range h.hooks {
+		commandNames = append(commandNames, k)
+	}
+
+	for _, k := range commandNames {
+		if len(h.hooks[k]) == 0 {
+			delete(h.hooks, k)
+		}
+	}
+}
+
+// WaitFor waits until the specified command is returned by the server
+func (h *Handler) WaitFor(command string) <-chan *event.Message {
+	outChan := make(chan *event.Message, 1)
+
+	var id int
+	id = h.AddCallback(command, func(m *event.Message) error {
+		if !strings.EqualFold(m.Raw.Command, command) {
+			return nil
+		}
+
+		h.RemoveCallback(id)
+		outChan <- m
+		close(outChan)
+
+		return nil
+	})
+
+	return outChan
 }
