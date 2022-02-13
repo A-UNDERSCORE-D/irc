@@ -4,7 +4,7 @@
 package breakout
 
 import (
-	"awesome-dragon.science/go/irc/client2/event"
+	"awesome-dragon.science/go/irc/client/event"
 	"awesome-dragon.science/go/irc/user"
 )
 

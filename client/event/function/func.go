@@ -1,6 +1,6 @@
 package function
 
-import "awesome-dragon.science/go/irc/client2/event"
+import "awesome-dragon.science/go/irc/client/event"
 
 // FuncHandler is a thin wrapper
 type FuncHandler func(msg *event.Message) error

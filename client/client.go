@@ -1,232 +1,143 @@
-package client
+package client2
 
 import (
 	"context"
 	"fmt"
-	"log"
 	"sync"
 
 	"awesome-dragon.science/go/irc/capab"
+	"awesome-dragon.science/go/irc/client/event"
+	"awesome-dragon.science/go/irc/client/event/irccommand"
 	"awesome-dragon.science/go/irc/connection"
-	"awesome-dragon.science/go/irc/event"
-	"awesome-dragon.science/go/irc/mode"
-	"awesome-dragon.science/go/irc/numerics"
 	"github.com/ergochat/irc-go/ircmsg"
-	"github.com/ergochat/irc-go/ircutils"
+	"github.com/op/go-logging"
 )
 
-// spell-checker: words sasl
+var log = logging.MustGetLogger("ircClient")
 
-var DefaultCapabilities = []string{
-	"account-notify", "away-notify", "chghost", "extended-join",
-	"multi-prefix", "sasl", "account-tag",
-
-	"solanum.chat/identify-msg", "solanum.chat/oper", "solanum.chat/realhost",
+type MessageSource interface {
+	LineChan() <-chan *ircmsg.Message
 }
 
-// ClientConfig contains all configuration options for Client
-type ClientConfig struct {
+// Config is a startup configuration for a client instance
+type Config struct {
 	Connection connection.Config
+	Nick       string
+	Username   string
+	Realname   string
 
-	ServerPassword string
+	doSASL       bool
+	SASLUsername string
+	SASLPassword string
 
-	Nickname string
-	Username string
-	Realname string
-
-	CTCPResponses map[string]string
-
-	SASL               bool
-	NickServAuthUser   string
-	NickServAuthPasswd string
-	SASLCertPath       string
-	SASLCertKeyPath    string
-	SASLCertPasswd     string
-
-	JoinChannels []string
-	Capabilities []string
+	RequestedCapabilities []string
 }
 
-// NewClient creates a new client that is ready to use
-func NewClient(config *ClientConfig) *Client {
-	if config.SASL {
-		config.Capabilities = append(config.Capabilities, "sasl")
-	}
-
-	c := &Client{
-		connection:   connection.NewConnection(&config.Connection),
-		config:       config,
-		log:          log.Default(),
-		EventManager: event.NewManager(),
-	}
-
-	c.EventManager.AddCallback("NICK", c.onNick, false)
-	c.EventManager.AddCallback("JOIN", c.onJoin, false)
-	c.EventManager.AddCallback("PART", c.onPart, false)
-
-	c.capabilityNegotiator = capab.New(&capab.Config{
-		ToRequest:    config.Capabilities,
-		SASL:         config.NickServAuthPasswd != "" && config.NickServAuthUser != "",
-		SASLUsername: config.NickServAuthUser,
-		SASLPassword: config.NickServAuthUser,
-	}, c)
-
-	go func() {
-		for line := range c.connection.LineChan() {
-			c.onMessage(line)
-		}
-	}()
-
-	return c
-}
-
-// Client is a full fledged IRC "client". It handles a bit of bookkeeping itself
-// and provides a frontend for an event system that you can run your own code on
+// Client implements a full IRC client for use in bots. It does most of the work
+// in connecting and otherwise handling the protocol
 type Client struct {
-	connection *connection.Connection
-	config     *ClientConfig
+	mu             sync.Mutex
+	connection     *connection.Connection
+	internalEvents *irccommand.Handler
+	clientEvents   event.MessageHandler
 
-	log                  *log.Logger
-	EventManager         *event.Manager
-	capabilityNegotiator *capab.Negotiator
-
-	mu       sync.Mutex
-	nickname string   // the *current* nickname
-	channels []string // channels we're in
-	umodes   []mode.Mode
-
-	nicHooks hooks
+	capabilities *capab.Negotiator
+	// outgoingEvents MessageHandler
 }
 
-// Connect connects the Client to IRC.
-// You probably want Run.
-func (c *Client) Connect() error {
-	ctx := context.Background()
+// New creates a new instance of Client.
+func New(config *Config) *Client {
+	conn := connection.NewConnection(&config.Connection)
+	out := &Client{
+		internalEvents: &irccommand.Handler{},
+		connection:     conn,
+	}
+
+	out.capabilities = capab.New(&capab.Config{
+		ToRequest:    config.RequestedCapabilities,
+		SASL:         config.doSASL,
+		SASLUsername: config.SASLUsername,
+		SASLPassword: config.SASLPassword,
+		SASLMech:     "PLAIN",
+	}, out.WriteIRC, &irccommand.SimpleHandler{Handler: out.internalEvents})
+
+	out.internalEvents.AddCallback("PING", func(m *event.Message) error {
+		return out.WriteIRC("PONG", m.Raw.Params...)
+	})
+
+	return out
+}
+
+// SetMessageHandler sets the callback handler for incoming IRC Messages
+func (c *Client) SetMessageHandler(handler event.MessageHandler) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.clientEvents = handler
+}
+
+// Run connects to IRC and handles messages until a disconnection occurs
+func (c *Client) Run(ctx context.Context) error {
 	if err := c.connection.Connect(ctx); err != nil {
-		return err
+		return fmt.Errorf("could not connect to IRC: %w", err)
 	}
 
-	return nil
-}
+	// Connection complete, attach line handlers etc
+	go c.listenLoop(ctx)
 
-// Run starts the connection to IRC and blocks until the connection is closed
-func (c *Client) Run() error {
-	if err := c.Connect(); err != nil {
-		return fmt.Errorf("could not connect: %w", err)
-	}
+	c.capabilities.Negotiate()
 
-	c.capabilityNegotiator.Negotiate()
-
-	if err := c.Write("NICK", c.config.Nickname); err != nil {
-		c.connection.Stop("")
-
-		return fmt.Errorf("could not write NICK command: %w", err)
-	}
-
-	if err := c.Write("USER", c.config.Username, "*", "*", c.config.Realname); err != nil {
-		c.connection.Stop("")
-
-		return fmt.Errorf("could not write USER command: %w", err)
-	}
-
-	<-c.EventManager.WaitFor("001")
-	c.log.Print("CONNECTED!!!!!!!!!!!!!!")
-	<-c.EventManager.WaitFor(numerics.RPL_ENDOFMOTD)
-	c.log.Print(c.connection.ISupport.Modes())
+	c.WriteIRC("NICK", "test")
+	c.WriteIRC("USER", "dergtest", "*", "*", "asdf test")
 
 	<-c.connection.Done()
 
 	return nil
 }
 
-func (c *Client) onMessage(msg *ircmsg.Message) {
-	switch msg.Command {
-	case "PING":
-		if err := c.Write("PONG", msg.Params...); err != nil {
-			log.Printf("Failed to write PONG message! %s", err)
+func (c *Client) listenLoop(ctx context.Context) {
+	lineChan := c.connection.LineChan()
+loop:
+	for {
+		select {
+		case line, ok := <-lineChan:
+			if !ok {
+				break loop
+			}
+
+			c.mu.Lock()
+			clientHandler := c.clientEvents
+			c.mu.Unlock()
+
+			ev := &event.Message{
+				Raw:           line,
+				AvailableCaps: c.capabilities.AvailableCaps(),
+			}
+
+			if err := c.internalEvents.OnMessage(ev); err != nil {
+				log.Criticalf("Error during internal handling of %q: %s", ev.Raw, err)
+			}
+
+			if clientHandler != nil {
+				if err := clientHandler.OnMessage(ev); err != nil {
+					log.Warningf("Error during client handling of %q: %s", ev.Raw, err)
+				}
+			}
+
+		case <-ctx.Done():
+			break loop
 		}
-
-	case "ERROR":
-		c.log.Printf("ERROR from server: %v", msg)
 	}
-
-	c.EventManager.Fire(msg.Command, msg)
 }
 
-func (c *Client) fromMe(msg *ircmsg.Message) bool {
-	source := ircutils.ParseUserhost(msg.Prefix)
-
-	return source.Nick == c.nickname
+// WriteIRC constructs an IRC line and sends it to the server
+func (c *Client) WriteIRC(command string, params ...string) error {
+	return fmt.Errorf("WriteIRC: %w", c.connection.WriteLine(command, params...))
 }
 
-func (c *Client) onNick(msg *ircmsg.Message) {
-	// :oldnick!*@* NICK newnick
-	if !c.fromMe(msg) {
-		// Wasn't from us
-		return
-	}
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.nickname = msg.Params[0]
+func (c *Client) SendMessage(target, message string) error {
+	return c.WriteIRC("PRIVMSG", target, message)
 }
 
-func (c *Client) onJoin(msg *ircmsg.Message) {
-	if !c.fromMe(msg) {
-		return
-	}
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.channels = append(c.channels, msg.Params[0])
-}
-
-func (c *Client) onPart(msg *ircmsg.Message) {
-	if !c.fromMe(msg) {
-		return
-	}
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	newChans := []string{}
-
-	for _, c := range c.channels {
-		if c == msg.Params[0] {
-			continue
-		}
-
-		newChans = append(newChans, c)
-	}
-
-	c.channels = newChans
-}
-
-// TODO:
-// - RPL_YOUREOPER
-// - umodes
-
-// Write writes an IRC command to the Server
-func (c *Client) Write(command string, args ...string) error {
-	return c.connection.WriteLine(command, args...)
-}
-
-// Nick returns the client's current nickname
-func (c *Client) Nick() string {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	return c.nickname
-}
-
-func (c *Client) AddCallback(name string, f func(*ircmsg.Message), concurrent bool) int {
-	return c.EventManager.AddCallback(name, f, concurrent)
-}
-
-func (c *Client) RemoveCallback(id int) {
-	c.EventManager.RemoveCallback(id)
-}
-
-func (c *Client) AddOneShotCallback(name string, f func(*ircmsg.Message), concurrent bool) int {
-	return c.EventManager.AddOneShotCallback(name, f, concurrent)
+func (c *Client) SendNotice(target, message string) error {
+	return c.WriteIRC("NOTICE", target, message)
 }

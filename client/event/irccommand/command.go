@@ -5,7 +5,7 @@ import (
 	"strings"
 	"sync"
 
-	"awesome-dragon.science/go/irc/client2/event"
+	"awesome-dragon.science/go/irc/client/event"
 )
 
 var _ event.MessageHandler = (*Handler)(nil)

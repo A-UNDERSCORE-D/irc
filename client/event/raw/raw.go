@@ -3,7 +3,7 @@ package raw
 import (
 	"sync"
 
-	"awesome-dragon.science/go/irc/client2/event"
+	"awesome-dragon.science/go/irc/client/event"
 )
 
 // Handler is a simple MessageHandler implementation that simply passes the message along

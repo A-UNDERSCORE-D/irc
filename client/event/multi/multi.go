@@ -3,7 +3,7 @@ package multi
 import (
 	"sync"
 
-	"awesome-dragon.science/go/irc/client2/event"
+	"awesome-dragon.science/go/irc/client/event"
 )
 
 // Handler is a MessageHandler implementation that allows multiple implementations to accept the same messages

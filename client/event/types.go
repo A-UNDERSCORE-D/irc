@@ -2,12 +2,15 @@ package event
 
 import (
 	"awesome-dragon.science/go/irc/capab"
+	"awesome-dragon.science/go/irc/user"
 	"github.com/ergochat/irc-go/ircmsg"
 )
 
 // Message represents an incoming IRC message and associated metadata
 type Message struct {
 	Raw           *ircmsg.Message
+	SourceUser    *user.EphemeralUser
+	CurrentNick   string
 	AvailableCaps []capab.Capability
 }
 
