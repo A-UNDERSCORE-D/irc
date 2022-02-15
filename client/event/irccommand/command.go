@@ -90,7 +90,7 @@ func (h *Handler) AddCallback(command string, callback event.CallbackFunc) int {
 	return h.lastID
 }
 
-// Remove a callback from the Handler instance
+// RemoveCallback remove a callback from the Handler instance
 func (h *Handler) RemoveCallback(id int) {
 	h.mu.Lock()
 	defer h.mu.Unlock()

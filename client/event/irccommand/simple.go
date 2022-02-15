@@ -11,8 +11,21 @@ type SimpleHandler struct {
 }
 
 // AddCallback adds a callback to the SimpleHandler instance
-func (c *SimpleHandler) AddCallback(command string, callback func(*ircmsg.Message) error) int {
-	return c.Handler.AddCallback(command, func(m *event.Message) error {
+func (h *SimpleHandler) AddCallback(command string, callback func(*ircmsg.Message) error) int {
+	return h.Handler.AddCallback(command, func(m *event.Message) error {
 		return callback(m.Raw)
 	})
+}
+
+// WaitFor waits for the specified IRC command, and sends the
+func (h *SimpleHandler) WaitFor(command string) <-chan *ircmsg.Message {
+	outChan := make(chan *ircmsg.Message)
+	c := h.Handler.WaitFor(command)
+
+	go func() {
+		outChan <- (<-c).Raw
+		close(outChan)
+	}()
+
+	return outChan
 }

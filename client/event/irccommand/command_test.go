@@ -93,6 +93,8 @@ func TestHandler_OnMessage(t *testing.T) {
 }
 
 func TestHandler_AddCallback(t *testing.T) {
+	t.Parallel()
+
 	h := &Handler{}
 
 	h.AddCallback("test", func(m *event.Message) error { panic("not implemented") })
@@ -146,11 +148,11 @@ func TestHandler_RemoveCallback(t *testing.T) {
 
 func TestHandler_WaitFor(t *testing.T) {
 	t.Parallel()
-	h := &Handler{}
 
+	h := &Handler{}
 	c := h.WaitFor("TEST")
 
-	h.OnMessage(&event.Message{Raw: mustParseLine(":a!b@c TEST")})
+	_ = h.OnMessage(&event.Message{Raw: mustParseLine(":a!b@c TEST")})
 
 	select {
 	case <-c:
