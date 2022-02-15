@@ -9,6 +9,8 @@ import (
 	"awesome-dragon.science/go/irc/client/event"
 	"awesome-dragon.science/go/irc/client/event/irccommand"
 	"awesome-dragon.science/go/irc/connection"
+	"awesome-dragon.science/go/irc/numerics"
+	"awesome-dragon.science/go/irc/user"
 	"github.com/ergochat/irc-go/ircmsg"
 	"github.com/op/go-logging"
 )
@@ -41,7 +43,10 @@ type Client struct {
 	internalEvents *irccommand.Handler
 	clientEvents   event.MessageHandler
 
+	currentNick string
+
 	capabilities *capab.Negotiator
+	config       *Config
 	// outgoingEvents MessageHandler
 }
 
@@ -51,6 +56,7 @@ func New(config *Config) *Client {
 	out := &Client{
 		internalEvents: &irccommand.Handler{},
 		connection:     conn,
+		config:         config,
 	}
 
 	out.capabilities = capab.New(&capab.Config{
@@ -63,6 +69,22 @@ func New(config *Config) *Client {
 
 	out.internalEvents.AddCallback("PING", func(m *event.Message) error {
 		return out.WriteIRC("PONG", m.Raw.Params...)
+	})
+
+	out.internalEvents.AddCallback(numerics.ERR_NICKNAMEINUSE, func(m *event.Message) error {
+		return out.WriteIRC("NICK", m.Raw.Params[0]+"_")
+	})
+
+	out.internalEvents.AddCallback(numerics.NICK, func(m *event.Message) error {
+		if m.SourceUser.Nick != out.currentNick {
+			return nil
+		}
+
+		out.mu.Lock()
+		out.currentNick = m.Raw.Params[len(m.Raw.Params)-1]
+		out.mu.Unlock()
+
+		return nil
 	})
 
 	return out
@@ -86,8 +108,15 @@ func (c *Client) Run(ctx context.Context) error {
 
 	c.capabilities.Negotiate()
 
-	c.WriteIRC("NICK", "test")
-	c.WriteIRC("USER", "dergtest", "*", "*", "asdf test")
+	c.currentNick = c.config.Nick
+
+	if err := c.WriteIRC("NICK", c.config.Nick); err != nil {
+		return err
+	}
+
+	if err := c.WriteIRC("USER", c.config.Username, "*", "*", c.config.Realname); err != nil {
+		return err
+	}
 
 	<-c.connection.Done()
 
@@ -108,8 +137,11 @@ loop:
 			clientHandler := c.clientEvents
 			c.mu.Unlock()
 
+			sourceUser := user.FromMessage(line, c.capabilities.AvailableCaps())
+
 			ev := &event.Message{
 				Raw:           line,
+				SourceUser:    sourceUser,
 				AvailableCaps: c.capabilities.AvailableCaps(),
 			}
 
@@ -117,8 +149,15 @@ loop:
 				log.Criticalf("Error during internal handling of %q: %s", ev.Raw, err)
 			}
 
+			pubEv := &event.Message{
+				Raw:           line,
+				SourceUser:    sourceUser,
+				CurrentNick:   c.CurrentNick(),
+				AvailableCaps: c.capabilities.AvailableCaps(),
+			}
+
 			if clientHandler != nil {
-				if err := clientHandler.OnMessage(ev); err != nil {
+				if err := clientHandler.OnMessage(pubEv); err != nil {
 					log.Warningf("Error during client handling of %q: %s", ev.Raw, err)
 				}
 			}
@@ -140,4 +179,13 @@ func (c *Client) SendMessage(target, message string) error {
 
 func (c *Client) SendNotice(target, message string) error {
 	return c.WriteIRC("NOTICE", target, message)
+}
+
+// CurrentNick returns what the Client believes its current nick is. It is safe for concurrent use.
+// A client created with New() will internally handle tracking nick changes.
+func (c *Client) CurrentNick() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.currentNick
 }

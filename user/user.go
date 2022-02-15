@@ -26,7 +26,6 @@ type User struct {
 	RealHost string
 	RealName string
 	Account  string
-	Away     bool
 }
 
 // EphemeralUser represents an IRC user. It is intended ephemeral use on messages.
@@ -72,7 +71,6 @@ func FromMessage(msg *ircmsg.Message, availableCaps []capab.Capability) Ephemera
 
 	switch { //nolint:gocritic // It will have others eventually
 	case msg.Command == "JOIN" && capAvailable("extended-join", availableCaps):
-
 		// ASSUMING this is extended-join
 		out.RealName = msg.Params[len(msg.Params)-1]
 	}
