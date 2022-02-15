@@ -33,11 +33,11 @@ func (m *Handler) OnMessage(msg *event.Message) error {
 }
 
 // AddHandler adds a handler to the MultiHandler instance
-func (m *Handler) AddHandler(h event.MessageHandler) {
+func (m *Handler) AddHandlers(h ...event.MessageHandler) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.handlers = append(m.handlers, h)
+	m.handlers = append(m.handlers, h...)
 }
 
 // RemoveHandler removes a handler from the MultiHandler instance
