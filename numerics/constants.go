@@ -3,6 +3,10 @@ package numerics
 // Stolen from ircstates
 //nolint:revive // They have names for a reason.
 const (
+	NICK    = "NICK"
+	PRIVMSG = "PRIVMSG"
+	NOTICE  = "NOTICE"
+
 	RPL_WELCOME     = "001"
 	RPL_MYINFO      = "004"
 	RPL_ISUPPORT    = "005"
