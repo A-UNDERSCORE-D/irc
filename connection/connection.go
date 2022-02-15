@@ -37,7 +37,7 @@ type Connection struct {
 	config *Config
 
 	conn          net.Conn
-	connectionCtx context.Context
+	connectionCtx context.Context // nolint:containedctx // Used to hold onto tne entire connection
 	cancelConnCtx context.CancelFunc
 	lineChan      chan *ircmsg.Message // Incoming lines
 	writeMutex    sync.Mutex           // Protects the write socket
