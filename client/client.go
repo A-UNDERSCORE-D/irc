@@ -11,15 +11,10 @@ import (
 	"awesome-dragon.science/go/irc/connection"
 	"awesome-dragon.science/go/irc/numerics"
 	"awesome-dragon.science/go/irc/user"
-	"github.com/ergochat/irc-go/ircmsg"
 	"github.com/op/go-logging"
 )
 
-var log = logging.MustGetLogger("ircClient")
-
-type MessageSource interface {
-	LineChan() <-chan *ircmsg.Message
-}
+var log = logging.MustGetLogger("irc-c") //nolint:gochecknoglobals // logger
 
 // Config is a startup configuration for a client instance
 type Config struct {
@@ -141,7 +136,7 @@ loop:
 
 			ev := &event.Message{
 				Raw:           line,
-				SourceUser:    sourceUser,
+				SourceUser:    &sourceUser,
 				AvailableCaps: c.capabilities.AvailableCaps(),
 			}
 
@@ -151,7 +146,7 @@ loop:
 
 			pubEv := &event.Message{
 				Raw:           line,
-				SourceUser:    sourceUser,
+				SourceUser:    &sourceUser,
 				CurrentNick:   c.CurrentNick(),
 				AvailableCaps: c.capabilities.AvailableCaps(),
 			}
