@@ -62,7 +62,7 @@ func NewSimpleServer(host, port string, useTLS bool) *Connection {
 // Connect connects the Server instance to IRC. It does NOT block.
 func (s *Connection) Connect(ctx context.Context) error {
 	connContext, cancel := context.WithTimeout(ctx, time.Second*10)
-	_ = cancel
+	defer cancel()
 
 	conn, err := s.openConn(connContext)
 	if err != nil {
