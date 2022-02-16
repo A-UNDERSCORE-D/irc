@@ -3,17 +3,21 @@ package oper
 import (
 	"bytes"
 	"crypto/rsa"
-	"crypto/sha1"
+	"crypto/sha1" //nolint:gosec // Its required by the spec
 	"encoding/base64"
 	"encoding/pem"
 	"errors"
 	"fmt"
 	"os"
+	"time"
 
+	"awesome-dragon.science/go/irc/client/event/irccommand"
 	"awesome-dragon.science/go/irc/numerics"
 	"github.com/ergochat/irc-go/ircmsg"
 	"github.com/youmark/pkcs8"
 )
+
+const challengeTimeout = time.Second * 15 // solanum will hold us for a good number of seconds right after connect
 
 // Challenge is a nice wrapper around DoChallenge that manages storing data and decoding b64 for you
 type Challenge struct {
@@ -22,10 +26,12 @@ type Challenge struct {
 	keypassword string
 }
 
+var errEmptyPathPasswd = errors.New("cannot have an empty path or password")
+
 // NewChallenge creates a new Challenge instance with the given password and path
 func NewChallenge(path, password string) (*Challenge, error) {
 	if path == "" || password == "" {
-		return nil, errors.New("cannot have empty path or password")
+		return nil, errEmptyPathPasswd
 	}
 
 	return &Challenge{
@@ -56,9 +62,62 @@ func (c *Challenge) PushData(data string) error {
 	return nil
 }
 
-// DoChallenge executes the below DoChallenge method with the contents of the buffer
-func (c *Challenge) DoChallenge() (string, error) {
+// GetResults executes the below GetResults method with the contents of the buffer
+func (c *Challenge) GetResults() (string, error) {
 	return DoChallenge(c.keypath, c.keypassword, c.dataBuffer.Bytes())
+}
+
+// Errors related to the automated challenge stuff
+var (
+	ErrChallengeTimeout = errors.New("timed out while waiting on challenge data")
+	ErrOperFailed       = errors.New("failed to oper up")
+)
+
+// DoChallenge performs an IRC CHALLENGE from start to finish. It will block until complete
+func (c *Challenge) DoChallenge(
+	handler *irccommand.SimpleHandler, writeIRC func(string, ...string) error, operName string,
+) error {
+	handler.AddCallback(numerics.RPL_RSACHALLENGE2, c.OnChallengeMessage)
+
+	if err := writeIRC("CHALLENGE", operName); err != nil {
+		return fmt.Errorf("could not write CHALLENGE: %w", err)
+	}
+	resultChan := make(chan *ircmsg.Message, 2)
+	oCB := func(msg *ircmsg.Message) error {
+		resultChan <- msg
+
+		return nil
+	}
+
+	handler.AddCallback(numerics.RPL_YOUREOPER, oCB)
+	handler.AddCallback(numerics.ERR_PASSWDMISSMATCH, oCB)
+	handler.AddCallback(numerics.ERR_NOOPERHOST, oCB)
+
+	select {
+	case <-handler.WaitFor(numerics.RPL_ENDOFRSACHALLENGE2):
+		res, err := c.GetResults()
+		if err != nil {
+			return fmt.Errorf("could not compute challenge response: %w", err)
+		}
+
+		if err := writeIRC("CHALLENGE", "+"+res); err != nil {
+			return fmt.Errorf("could not write CHALLENGE results: %w", err)
+		}
+	case <-time.After(challengeTimeout):
+		return ErrChallengeTimeout
+	}
+
+	// challenge sent, wait for either RPL_YOUREOPER or RPL_PASSWDMISMATCH
+	select {
+	case l := <-resultChan:
+		if l.Command == numerics.ERR_PASSWDMISSMATCH || l.Command == numerics.ERR_NOOPERHOST {
+			return ErrOperFailed
+		}
+	case <-time.After(challengeTimeout):
+		return ErrChallengeTimeout
+	}
+
+	return nil
 }
 
 // DoChallenge decrypts the ciphertext using the given password and key, returns the b64 encoded sha1 hash of the data
