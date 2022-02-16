@@ -32,7 +32,7 @@ func (m *Handler) OnMessage(msg *event.Message) error {
 	return outErr
 }
 
-// AddHandler adds a handler to the MultiHandler instance
+// AddHandlers adds a handler to the MultiHandler instance
 func (m *Handler) AddHandlers(h ...event.MessageHandler) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
