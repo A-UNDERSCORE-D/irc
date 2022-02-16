@@ -1,4 +1,4 @@
-package irccommand
+package irccommand //nolint:testpackage // Needed to set internal stuff
 
 import (
 	"fmt"
