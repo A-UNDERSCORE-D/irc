@@ -165,13 +165,19 @@ loop:
 
 // WriteIRC constructs an IRC line and sends it to the server
 func (c *Client) WriteIRC(command string, params ...string) error {
-	return fmt.Errorf("WriteIRC: %w", c.connection.WriteLine(command, params...))
+	if err := c.connection.WriteLine(command, params...); err != nil {
+		return fmt.Errorf("client.writeirc: %w", err)
+	}
+
+	return nil
 }
 
+// SendMessage sends a PRIVMSG to the given target with the given message
 func (c *Client) SendMessage(target, message string) error {
 	return c.WriteIRC("PRIVMSG", target, message)
 }
 
+// SendNotice sends a NOTICE to the given target with the given message
 func (c *Client) SendNotice(target, message string) error {
 	return c.WriteIRC("NOTICE", target, message)
 }
