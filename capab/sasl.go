@@ -81,12 +81,22 @@ func (n *Negotiator) doSaslPLAIN(username, password string) error {
 
 	authGoodID = n.eventManager.AddCallback(
 		numerics.RPL_SASLSUCCESS,
-		func(*ircmsg.Message) error { authChan <- "GOOD"; n.eventManager.RemoveCallback(authGoodID); return nil },
+		func(*ircmsg.Message) error {
+			authChan <- "GOOD"
+			n.eventManager.RemoveCallback(authGoodID)
+
+			return nil
+		},
 	)
 
 	authBadID = n.eventManager.AddCallback(
 		numerics.ERR_SASLFAIL,
-		func(*ircmsg.Message) error { authChan <- "BAD"; n.eventManager.RemoveCallback(authBadID); return nil },
+		func(*ircmsg.Message) error {
+			authChan <- "BAD"
+			n.eventManager.RemoveCallback(authBadID)
+
+			return nil
+		},
 	)
 
 	defer n.eventManager.RemoveCallback(authGoodID)

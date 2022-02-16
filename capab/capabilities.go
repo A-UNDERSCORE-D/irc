@@ -9,15 +9,7 @@ import (
 	"github.com/op/go-logging"
 )
 
-var log = logging.MustGetLogger("ircCapab")
-
-// minClient is the smallest interface required to make Negotiator work
-type minClient interface {
-	AddCallback(string, func(*ircmsg.Message)) int
-	RemoveCallback(int)
-
-	WriteIRC(string, ...string) error
-}
+var log = logging.MustGetLogger("irc-capab") //nolint:gochecknoglobals // logger
 
 type eventManager interface {
 	AddCallback(string, func(*ircmsg.Message) error) int
@@ -61,7 +53,7 @@ type Negotiator struct {
 	incomingCaps []string
 
 	doingNegotiation bool
-	reqsSent         int
+	requestsSent     int
 }
 
 // New creates a new Negotiator instance
@@ -218,7 +210,7 @@ func (n *Negotiator) requestCaps() {
 
 	log.Infof("Requesting capabilities %v", toRequest)
 
-	n.reqsSent += len(lines)
+	n.requestsSent += len(lines)
 
 	for _, l := range lines {
 		_ = n.writeIRC("CAP", "REQ", l)
@@ -266,9 +258,9 @@ func (n *Negotiator) capByName(name string) *Capability {
 func (n *Negotiator) onCapACK(caps []string) {
 	// process ack into things and stuff
 	n.incomingCaps = append(n.incomingCaps, caps...)
-	n.reqsSent--
+	n.requestsSent--
 	// more coming?
-	if n.reqsSent > 0 {
+	if n.requestsSent > 0 {
 		return
 	}
 
@@ -294,8 +286,8 @@ func (n *Negotiator) onCapACK(caps []string) {
 func (n *Negotiator) onCapNAK(split []string) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	// this shouldnt be possible, but if it is, do nothing, the outer client can handle this
-	n.reqsSent--
+	// this shouldn't be possible, but if it is, do nothing, the outer client can handle this
+	n.requestsSent--
 	for _, v := range split {
 		if c := n.capByName(v); c != nil {
 			c.Acknowledged = false
