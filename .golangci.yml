@@ -38,6 +38,7 @@ linters:
     - exhaustivestruct # Nope.
     - vet
     - varnamelen # Nice idea, but slightly annoying
+    - gci
     # - goanalysis_metalinter
     # - goanalysis
 # run:
