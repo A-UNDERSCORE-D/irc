@@ -12,18 +12,15 @@ import (
 
 var _ permissions.Handler = (*Handler)(nil)
 
-type SimpleMask struct {
+// Mask represents a nick!user@host mask with a set of available permissions
+type Mask struct {
 	Mask  string
 	Perms []string
 }
 
-func (s *SimpleMask) HasPermission(p string) (bool, error) {
-	return false, nil
-}
-
 // Handler is an IRC mask based  permission handler
 type Handler struct {
-	masks []*SimpleMask
+	masks []*Mask
 }
 
 // ErrNoMatch is returned when there is no matching entry to a given EphemeralUser
@@ -48,7 +45,6 @@ func (h *Handler) IsAuthorised(userToCheck *user.EphemeralUser, requiredPermissi
 		if ok {
 			return true, nil
 		}
-
 	}
 
 	return false, nil
