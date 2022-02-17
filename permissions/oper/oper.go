@@ -24,7 +24,11 @@ type Handler struct {
 // IsAuthorised implements Handler.IsAuthorized.
 // It checks against the users oper name and nothing else. Configured oper names are globbed.
 func (h *Handler) IsAuthorised(u *user.EphemeralUser, requiredPermissions []string) (bool, error) {
-	if !u.Oper {
+	if len(requiredPermissions) == 0 {
+		return true, nil
+	}
+
+	if !u.Oper { // quick path if any permission is required, and the target is not an oper
 		return false, nil
 	}
 
