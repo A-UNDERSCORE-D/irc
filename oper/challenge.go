@@ -11,7 +11,7 @@ import (
 	"os"
 	"time"
 
-	"awesome-dragon.science/go/irc/client/event/irccommand"
+	"awesome-dragon.science/go/irc/event/irccommand"
 	"awesome-dragon.science/go/irc/numerics"
 	"github.com/ergochat/irc-go/ircmsg"
 	"github.com/youmark/pkcs8"
@@ -74,7 +74,7 @@ var (
 )
 
 // DoChallenge performs an IRC CHALLENGE from start to finish. It will block until complete
-func (c *Challenge) DoChallenge(
+func (c *Challenge) DoChallenge( //nolint:cyclop // Implements an entire auth
 	handler *irccommand.SimpleHandler, writeIRC func(string, ...string) error, operName string,
 ) error {
 	handler.AddCallback(numerics.RPL_RSACHALLENGE2, c.OnChallengeMessage)
