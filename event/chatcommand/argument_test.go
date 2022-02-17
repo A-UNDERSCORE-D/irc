@@ -3,7 +3,7 @@ package chatcommand_test
 import (
 	"testing"
 
-	"awesome-dragon.science/go/irc/client/event/chatcommand"
+	"awesome-dragon.science/go/irc/event/chatcommand"
 )
 
 func TestArgument_ArgString(t *testing.T) {

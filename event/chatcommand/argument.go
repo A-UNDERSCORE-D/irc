@@ -3,7 +3,7 @@ package chatcommand
 import (
 	"strings"
 
-	"awesome-dragon.science/go/irc/client/event"
+	"awesome-dragon.science/go/irc/event"
 	"awesome-dragon.science/go/irc/user"
 )
 

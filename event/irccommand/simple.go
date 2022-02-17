@@ -1,7 +1,7 @@
 package irccommand
 
 import (
-	"awesome-dragon.science/go/irc/client/event"
+	"awesome-dragon.science/go/irc/event"
 	"github.com/ergochat/irc-go/ircmsg"
 )
 

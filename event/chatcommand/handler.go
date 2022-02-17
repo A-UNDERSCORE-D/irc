@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"awesome-dragon.science/go/irc/client/event"
+	"awesome-dragon.science/go/irc/event"
 	"awesome-dragon.science/go/irc/permissions"
 	"awesome-dragon.science/go/irc/user"
 	"github.com/op/go-logging"
