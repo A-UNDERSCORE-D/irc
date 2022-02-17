@@ -1,3 +1,4 @@
+// package capab implements IRCv3 Capability negotiation
 package capab
 
 import (

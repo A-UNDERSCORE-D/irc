@@ -1,3 +1,4 @@
+// package function provides an implementation of event.Handler based around a single function
 package function
 
 import "awesome-dragon.science/go/irc/event"

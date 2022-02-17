@@ -1,3 +1,4 @@
+// Package user provides some simple IRC user tracking
 package user
 
 import (

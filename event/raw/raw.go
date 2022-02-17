@@ -1,3 +1,4 @@
+// Package raw provides an event.Handler implementation that intercepts all incoming IRC messages
 package raw
 
 import (

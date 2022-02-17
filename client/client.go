@@ -6,9 +6,9 @@ import (
 	"sync"
 
 	"awesome-dragon.science/go/irc/capab"
-	"awesome-dragon.science/go/irc/client/event"
-	"awesome-dragon.science/go/irc/client/event/irccommand"
 	"awesome-dragon.science/go/irc/connection"
+	"awesome-dragon.science/go/irc/event"
+	"awesome-dragon.science/go/irc/event/irccommand"
 	"awesome-dragon.science/go/irc/numerics"
 	"awesome-dragon.science/go/irc/user"
 	"github.com/op/go-logging"

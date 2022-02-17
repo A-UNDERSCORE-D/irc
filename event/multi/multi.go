@@ -1,3 +1,4 @@
+// Package multi provides an event.Handler implementation that calls other event.Handler implementations
 package multi
 
 import (

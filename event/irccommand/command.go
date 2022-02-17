@@ -1,3 +1,4 @@
+// Package irccommand provides an event.Handler implementation scoped to IRC commands
 package irccommand
 
 import (

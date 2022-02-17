@@ -1,3 +1,4 @@
+// Package servernotice implements event.Handler for IRC server notices (not regular NOTICEs)
 package servernotice
 
 import (

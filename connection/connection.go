@@ -1,3 +1,4 @@
+// Package connection implements the most basic parts of an IRC connection
 package connection
 
 import (

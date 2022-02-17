@@ -1,3 +1,4 @@
+// Package numerics contains definitions for a large number of IRC numerics.
 package numerics
 
 // Stolen from ircstates
