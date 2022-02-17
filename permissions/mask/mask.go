@@ -26,6 +26,7 @@ type Handler struct {
 // ErrNoMatch is returned when there is no matching entry to a given EphemeralUser
 var ErrNoMatch = errors.New("no mask matches")
 
+// IsAuthorized implements permissions.Handler
 func (h *Handler) IsAuthorised(userToCheck *user.EphemeralUser, requiredPermissions []string) (bool, error) {
 	for _, u := range h.masks {
 		m, err := filepath.Match(u.Mask, util.UserHostCanonical(userToCheck.UserHost))
