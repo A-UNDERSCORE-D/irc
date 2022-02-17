@@ -82,7 +82,8 @@ func (c *Challenge) DoChallenge(
 	if err := writeIRC("CHALLENGE", operName); err != nil {
 		return fmt.Errorf("could not write CHALLENGE: %w", err)
 	}
-	resultChan := make(chan *ircmsg.Message, 2)
+
+	resultChan := make(chan *ircmsg.Message, 3)
 	oCB := func(msg *ircmsg.Message) error {
 		resultChan <- msg
 
@@ -103,6 +104,10 @@ func (c *Challenge) DoChallenge(
 		if err := writeIRC("CHALLENGE", "+"+res); err != nil {
 			return fmt.Errorf("could not write CHALLENGE results: %w", err)
 		}
+
+	case <-handler.WaitFor(numerics.ERR_NOOPERHOST):
+		return ErrOperFailed
+
 	case <-time.After(challengeTimeout):
 		return ErrChallengeTimeout
 	}
@@ -113,6 +118,7 @@ func (c *Challenge) DoChallenge(
 		if l.Command == numerics.ERR_PASSWDMISSMATCH || l.Command == numerics.ERR_NOOPERHOST {
 			return ErrOperFailed
 		}
+
 	case <-time.After(challengeTimeout):
 		return ErrChallengeTimeout
 	}
