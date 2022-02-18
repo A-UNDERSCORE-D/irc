@@ -2,9 +2,11 @@ package oper
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/rsa"
 	"crypto/sha1" //nolint:gosec // Its required by the spec
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -51,20 +53,22 @@ func (c *Challenge) OnChallengeMessage(data *ircmsg.Message) error {
 
 // PushData takes base64 encoded bytes and pushes the contained value onto the Challenge instance's buffer
 func (c *Challenge) PushData(data string) error {
-	decoded, err := base64.RawStdEncoding.DecodeString(data)
-	if err != nil {
-		return fmt.Errorf("could not decode b64: %w", err)
-	}
-
 	// This can never error, it only panics if you... use all the memory
-	_, _ = c.dataBuffer.Write(decoded)
+	_, _ = c.dataBuffer.WriteString(data)
 
 	return nil
 }
 
 // GetResults executes the below GetResults method with the contents of the buffer
 func (c *Challenge) GetResults() (string, error) {
-	return DoChallenge(c.keypath, c.keypassword, c.dataBuffer.Bytes())
+	decoded, err := base64.StdEncoding.DecodeString(c.dataBuffer.String())
+	if err != nil {
+		return "", fmt.Errorf("could not decode b64: %w", err)
+	}
+
+	fmt.Println(hex.Dump(decoded))
+
+	return DoChallenge(c.keypath, c.keypassword, decoded)
 }
 
 // Errors related to the automated challenge stuff
@@ -133,9 +137,9 @@ func DoChallenge(keypath, password string, ciphertext []byte) (string, error) {
 		return "", fmt.Errorf("failed to do challenge: %w", err)
 	}
 
-	data, err := key.Decrypt(nil, ciphertext, nil)
+	data, err := key.Decrypt(nil, ciphertext, &rsa.OAEPOptions{Hash: crypto.SHA1})
 	if err != nil {
-		return "", fmt.Errorf("unable to hash result: %w", err)
+		return "", fmt.Errorf("unable to decrypt result: %w", err)
 	}
 
 	out := sha1.Sum(data) //nolint:gosec // Its whats required by the format protocol
