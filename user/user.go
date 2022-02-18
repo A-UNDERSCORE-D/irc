@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"awesome-dragon.science/go/irc/capab"
+	"awesome-dragon.science/go/irc/util"
 	"github.com/ergochat/irc-go/ircmsg"
 	"github.com/ergochat/irc-go/ircutils"
 )
@@ -27,6 +28,11 @@ type User struct {
 	RealHost string
 	RealName string
 	Account  string
+}
+
+// Mask returns a n!u@h mask for the given User instance
+func (u *User) Mask() string {
+	return util.UserHostCanonical(u.UserHost)
 }
 
 // EphemeralUser represents an IRC user. It is intended ephemeral use on messages.
