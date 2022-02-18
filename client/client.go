@@ -71,7 +71,7 @@ func New(config *Config) *Client {
 	})
 
 	out.internalEvents.AddCallback(numerics.NICK, func(m *event.Message) error {
-		if m.SourceUser.Nick != out.currentNick {
+		if m.SourceUser.Name != out.currentNick {
 			return nil
 		}
 

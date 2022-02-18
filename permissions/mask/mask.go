@@ -8,7 +8,6 @@ import (
 
 	"awesome-dragon.science/go/irc/permissions"
 	"awesome-dragon.science/go/irc/user"
-	"awesome-dragon.science/go/irc/util"
 )
 
 var _ permissions.Handler = (*Handler)(nil)
@@ -30,7 +29,7 @@ var ErrNoMatch = errors.New("no mask matches")
 // IsAuthorised implements permissions.Handler
 func (h *Handler) IsAuthorised(userToCheck *user.EphemeralUser, requiredPermissions []string) (bool, error) {
 	for _, u := range h.masks {
-		m, err := filepath.Match(u.Mask, util.UserHostCanonical(userToCheck.UserHost))
+		m, err := filepath.Match(u.Mask, userToCheck.Mask())
 		if err != nil {
 			return false, fmt.Errorf("invalid user mask %q: %w", u.Mask, err)
 		}

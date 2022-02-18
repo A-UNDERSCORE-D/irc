@@ -44,7 +44,7 @@ func makeIS(tokens ...string) *isupport.ISupport {
 	out := isupport.New()
 	for _, t := range tokens {
 		out.Parse(&ircmsg.Message{
-			Prefix:  ":dragon.libera.chat",
+			Source:  ":dragon.libera.chat",
 			Command: "005",
 			Params:  []string{"test", t, "are supported by this server"},
 		})

@@ -6,9 +6,7 @@ import (
 	"strings"
 
 	"awesome-dragon.science/go/irc/capab"
-	"awesome-dragon.science/go/irc/util"
 	"github.com/ergochat/irc-go/ircmsg"
-	"github.com/ergochat/irc-go/ircutils"
 )
 
 func capAvailable(key string, s []capab.Capability) bool {
@@ -23,7 +21,7 @@ func capAvailable(key string, s []capab.Capability) bool {
 
 // User represents an IRC user, with some optional bits of info, if known
 type User struct {
-	ircutils.UserHost
+	ircmsg.NUH
 	RealIP   net.IP
 	RealHost string
 	RealName string
@@ -32,7 +30,7 @@ type User struct {
 
 // Mask returns a n!u@h mask for the given User instance
 func (u *User) Mask() string {
-	return util.UserHostCanonical(u.UserHost)
+	return u.NUH.Canonical()
 }
 
 // EphemeralUser represents an IRC user. It is intended ephemeral use on messages.
@@ -52,8 +50,9 @@ type EphemeralUser struct {
 // It will make use of various tags, if offered, to add more information to
 // the struct
 func FromMessage(msg *ircmsg.Message, availableCaps []capab.Capability) EphemeralUser {
+	nuh, _ := ircmsg.ParseNUH(msg.Source)
 	out := EphemeralUser{
-		User: User{UserHost: ircutils.ParseUserhost(msg.Prefix)},
+		User: User{NUH: nuh},
 	}
 
 	for tagname, value := range msg.AllTags() {

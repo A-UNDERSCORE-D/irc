@@ -32,7 +32,7 @@ func (h *Handler) OnMessage(msg *event.Message) error {
 		return nil
 	}
 
-	if !strings.Contains(msg.SourceUser.Nick, ".") {
+	if !strings.Contains(msg.SourceUser.Name, ".") {
 		// could be a user or otherwise
 		return nil
 	}

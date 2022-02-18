@@ -85,7 +85,7 @@ func (h *Handler) OnMessage(msg *event.Message) error {
 
 	replyTarget := messageTarget
 	if replyTarget[0] == '#' {
-		replyTarget = sourceUser.Nick
+		replyTarget = sourceUser.Name
 	}
 
 	h.executeCommandIfExists(message, messageTarget, replyTarget, sourceUser, msg.CurrentNick, msg)
@@ -202,7 +202,7 @@ func (h *Handler) executeCommandIfExists(
 		// Next up, permissions
 		allowed, err := h.PermissionHandler.IsAuthorised(sourceUser, cmd.requiredPermissions)
 		if err != nil {
-			log.Infof("Permission check for %s on command %q errored: %s", sourceUser.UserHost, cmd.name, err)
+			log.Infof("Permission check for %#v on command %q errored: %s", sourceUser, cmd.name, err)
 		}
 
 		if !allowed {
