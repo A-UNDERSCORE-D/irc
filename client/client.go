@@ -67,7 +67,7 @@ func New(config *Config) *Client {
 	})
 
 	out.internalEvents.AddCallback(numerics.ERR_NICKNAMEINUSE, func(m *event.Message) error {
-		return out.WriteIRC("NICK", m.Raw.Params[0]+"_")
+		return out.WriteIRC("NICK", m.Raw.Params[1]+"_")
 	})
 
 	out.internalEvents.AddCallback(numerics.NICK, func(m *event.Message) error {
