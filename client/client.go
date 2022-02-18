@@ -171,22 +171,3 @@ func (c *Client) WriteIRC(command string, params ...string) error {
 
 	return nil
 }
-
-// SendMessage sends a PRIVMSG to the given target with the given message
-func (c *Client) SendMessage(target, message string) error {
-	return c.WriteIRC("PRIVMSG", target, message)
-}
-
-// SendNotice sends a NOTICE to the given target with the given message
-func (c *Client) SendNotice(target, message string) error {
-	return c.WriteIRC("NOTICE", target, message)
-}
-
-// CurrentNick returns what the Client believes its current nick is. It is safe for concurrent use.
-// A client created with New() will internally handle tracking nick changes.
-func (c *Client) CurrentNick() string {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	return c.currentNick
-}
