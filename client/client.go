@@ -18,10 +18,11 @@ var log = logging.MustGetLogger("irc-c") //nolint:gochecknoglobals // logger
 
 // Config is a startup configuration for a client instance
 type Config struct {
-	Connection connection.Config
-	Nick       string
-	Username   string
-	Realname   string
+	Connection     connection.Config
+	ServerPassword string
+	Nick           string
+	Username       string
+	Realname       string
 
 	doSASL       bool
 	SASLUsername string
@@ -56,7 +57,7 @@ func New(config *Config) *Client {
 
 	out.capabilities = capab.New(&capab.Config{
 		ToRequest:    config.RequestedCapabilities,
-		SASL:         config.doSASL,
+		SASL:         config.SASLUsername != "" && config.SASLPassword != "",
 		SASLUsername: config.SASLUsername,
 		SASLPassword: config.SASLPassword,
 		SASLMech:     "PLAIN",
@@ -104,6 +105,12 @@ func (c *Client) Run(ctx context.Context) error {
 	c.capabilities.Negotiate()
 
 	c.currentNick = c.config.Nick
+
+	if c.config.ServerPassword != "" {
+		if err := c.WriteIRC("PASS", c.config.ServerPassword); err != nil {
+			return err
+		}
+	}
 
 	if err := c.WriteIRC("NICK", c.config.Nick); err != nil {
 		return err
