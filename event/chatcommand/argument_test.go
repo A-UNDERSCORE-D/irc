@@ -8,6 +8,7 @@ import (
 
 func TestArgument_ArgString(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name string
 		a    *chatcommand.Argument
@@ -36,6 +37,7 @@ func TestArgument_ArgString(t *testing.T) {
 			want: "it was the dawn of the third age of mankind",
 		},
 	}
+
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {

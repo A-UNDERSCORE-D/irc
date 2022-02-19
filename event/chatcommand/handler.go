@@ -236,7 +236,7 @@ func (h *Handler) executeCommandIfExists(
 		}
 	}()
 
-	log.Info("Executing command %q for user %s", cmd.name, sourceUser.Mask())
+	log.Infof("Executing command %q for user %s", cmd.name, sourceUser.Mask())
 
 	if err := cmd.callback(argsToSend); err != nil {
 		log.Errorf("Error while running command %q's callback: %s", cmd.name, err)

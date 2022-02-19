@@ -14,6 +14,27 @@ linters-settings:
       - performance
       - style
 
+  govet:
+    settings:
+      printf:
+        funcs:
+          - "(*github.com/op/go-logging.Logger).Fatal"
+          - "(*github.com/op/go-logging.Logger).Fatalf"
+          - "(*github.com/op/go-logging.Logger).Panic"
+          - "(*github.com/op/go-logging.Logger).Panicf"
+          - "(*github.com/op/go-logging.Logger).Critical"
+          - "(*github.com/op/go-logging.Logger).Criticalf"
+          - "(*github.com/op/go-logging.Logger).Error"
+          - "(*github.com/op/go-logging.Logger).Errorf"
+          - "(*github.com/op/go-logging.Logger).Warning"
+          - "(*github.com/op/go-logging.Logger).Warningf"
+          - "(*github.com/op/go-logging.Logger).Notice"
+          - "(*github.com/op/go-logging.Logger).Noticef"
+          - "(*github.com/op/go-logging.Logger).Info"
+          - "(*github.com/op/go-logging.Logger).Infof"
+          - "(*github.com/op/go-logging.Logger).Debug"
+          - "(*github.com/op/go-logging.Logger).Debugf"
+
   nolintlint:
     # Disable to ensure that all nolint directives actually have an effect. Default is true.
     allow-unused: false
@@ -26,7 +47,7 @@ linters:
   enable-all: true
   disable:
     - maligned
-    # - staticcheck
+    - staticcheck
     - golint
     - forbidigo
     - interfacer
@@ -36,13 +57,8 @@ linters:
     - godot # No.
     - gomnd # I like the idea, god this is annoying.
     - exhaustivestruct # Nope.
-    - vet
     - varnamelen # Nice idea, but slightly annoying
     - gci
-    # - goanalysis_metalinter
-    # - goanalysis
-# run:
-#   max-issues-per-linter: 0
 
 issues:
   exclude-use-default: false
