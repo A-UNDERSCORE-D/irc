@@ -46,6 +46,11 @@ func (c *Client) CurrentNick() string {
 	return c.currentNick
 }
 
+// ToggleRawLog enables or disables raw IRC line logging
+func (c *Client) ToggleRawLog() {
+	c.config.Connection.RawLog = !c.config.Connection.RawLog
+}
+
 /*
 Util functions
 Join
