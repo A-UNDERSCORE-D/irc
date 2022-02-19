@@ -84,7 +84,7 @@ func (h *Handler) OnMessage(msg *event.Message) error {
 	}
 
 	replyTarget := messageTarget
-	if replyTarget[0] == '#' {
+	if replyTarget == msg.CurrentNick {
 		replyTarget = sourceUser.Name
 	}
 
