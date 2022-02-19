@@ -163,7 +163,7 @@ func (h *Handler) DoHelp(commandName string) string {
 		sort.Strings(keys)
 		// all commands
 
-		return "Available commands: " + strings.Join(keys, ",")
+		return "Available commands: " + strings.Join(keys, ", ")
 	}
 
 	commandName = strings.ToUpper(commandName)
@@ -235,6 +235,8 @@ func (h *Handler) executeCommandIfExists(
 			log.Criticalf("Caught panic while running command! %#v", res)
 		}
 	}()
+
+	log.Info("Executing command %q for user %s", cmd.name, sourceUser.Mask())
 
 	if err := cmd.callback(argsToSend); err != nil {
 		log.Errorf("Error while running command %q's callback: %s", cmd.name, err)
