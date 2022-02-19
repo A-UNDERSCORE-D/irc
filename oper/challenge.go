@@ -6,7 +6,6 @@ import (
 	"crypto/rsa"
 	"crypto/sha1" //nolint:gosec // Its required by the spec
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -65,8 +64,6 @@ func (c *Challenge) GetResults() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("could not decode b64: %w", err)
 	}
-
-	fmt.Println(hex.Dump(decoded))
 
 	return DoChallenge(c.keypath, c.keypassword, decoded)
 }
