@@ -15,7 +15,7 @@ import (
 
 var log = logging.MustGetLogger("irc") //nolint:gochecknoglobals // logger is fine :P
 
-// Handler implements a chat message command system
+// Handler implements a chat message command system. You must provide a prefix and MessageFunc for replies
 type Handler struct {
 	Prefix    string
 	mu        sync.Mutex // Protects callbacks
@@ -88,9 +88,7 @@ func (h *Handler) OnMessage(msg *event.Message) error {
 		replyTarget = sourceUser.Name
 	}
 
-	h.executeCommandIfExists(message, messageTarget, replyTarget, sourceUser, msg.CurrentNick, msg)
-
-	return nil
+	return h.executeCommandIfExists(message, messageTarget, replyTarget, sourceUser, msg.CurrentNick, msg)
 }
 
 func (h *Handler) getCommand(splitMsg []string, currentNick string) (cmd *command, args []string) {
@@ -189,13 +187,13 @@ func (h *Handler) replyf(target, format string, args ...interface{}) {
 
 func (h *Handler) executeCommandIfExists(
 	message, target, replyTarget string, sourceUser *user.EphemeralUser, currentNick string, ev *event.Message,
-) {
-	splitMsg := strings.SplitN(message, " ", 2)
+) (outErr error) {
+	splitMsg := strings.Split(message, " ")
 
 	cmd, args := h.getCommand(splitMsg, currentNick)
 
 	if cmd == nil {
-		return
+		return nil
 	}
 
 	if h.PermissionHandler != nil {
@@ -208,7 +206,7 @@ func (h *Handler) executeCommandIfExists(
 		if !allowed {
 			h.reply(replyTarget, "Access denied.")
 
-			return
+			return nil
 		}
 	} else {
 		log.Debug("Permissions handler is nil. Skipping all permissions checks.")
@@ -217,7 +215,7 @@ func (h *Handler) executeCommandIfExists(
 	if cmd.requiredArgs != -1 && len(args) < cmd.requiredArgs {
 		h.replyf(replyTarget, "\x02%s\x02 Requires at least \x02%d\x02 arguments.", cmd.name, cmd.requiredArgs)
 
-		return
+		return nil
 	}
 
 	argsToSend := &Argument{
@@ -233,6 +231,12 @@ func (h *Handler) executeCommandIfExists(
 	defer func() {
 		if res := recover(); res != nil {
 			log.Criticalf("Caught panic while running command! %#v", res)
+
+			outErr = &CommandPanicedError{
+				CommandName: cmd.name,
+				line:        ev.Raw,
+				PanicData:   res,
+			}
 		}
 	}()
 
@@ -240,5 +244,9 @@ func (h *Handler) executeCommandIfExists(
 
 	if err := cmd.callback(argsToSend); err != nil {
 		log.Errorf("Error while running command %q's callback: %s", cmd.name, err)
+
+		return err
 	}
+
+	return nil
 }
