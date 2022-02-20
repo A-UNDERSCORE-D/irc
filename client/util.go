@@ -1,6 +1,10 @@
 package client
 
-import "fmt"
+import (
+	"fmt"
+
+	"awesome-dragon.science/go/irc/util"
+)
 
 // WaitForExit blocks until the connection is closed
 func (c *Client) WaitForExit() {
@@ -17,9 +21,26 @@ func (c *Client) Stop(message string) {
 	c.connection.Stop(message)
 }
 
-// SendMessage sends a PRIVMSG to the given target with the given message
+const maxMessageLength = 450
+
+// SendMessage sends a PRIVMSG to the given target with the given message.
 func (c *Client) SendMessage(target, message string) error {
 	return c.WriteIRC("PRIVMSG", target, message)
+}
+
+// SendMessageChunked will use SendMessage to send your message, but if the message is over the max for an IRC
+// message, it will split it into chunks, and send each one individually.
+//
+// This is mostly intended for use with things like chatcommand.Handler that dont know how long their messages
+// will be. If you can, you likely want to do this manually, as the chunking this uses is not intelligent at all.
+func (c *Client) SendMessageChunked(message, target string) error {
+	for _, l := range util.ChunkMessage(message, maxMessageLength) {
+		if err := c.SendMessage(target, l); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // SendMessagef is like SendMessage but with printf formatting
@@ -35,6 +56,21 @@ func (c *Client) SendNotice(target, message string) error {
 // SendNoticef is like SendNotice but with printf formatting
 func (c *Client) SendNoticef(target, format string, args ...interface{}) error {
 	return c.SendNotice(target, fmt.Sprintf(format, args...))
+}
+
+// SendNoticeChunked will use SendNotice to send your message, but if the message is over the max for an IRC
+// message, it will split it into chunks, and send each one individually.
+//
+// This is mostly intended for use with things like chatcommand.Handler that dont know how long their messages
+// will be. If you can, you likely want to do this manually, as the chunking this uses is not intelligent at all.
+func (c *Client) SendNoticeChunked(message, target string) error {
+	for _, l := range util.ChunkMessage(message, maxMessageLength) {
+		if err := c.SendNotice(target, l); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // CurrentNick returns what the Client believes its current nick is. It is safe for concurrent use.
