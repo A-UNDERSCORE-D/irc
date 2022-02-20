@@ -127,7 +127,7 @@ func (h *Handler) getCommand(splitMsg []string, currentNick string) (cmd *comman
 				requiredArgs:        0,
 				requiredPermissions: nil,
 				callback:            h.helpCommandCallback,
-			}, nil
+			}, args
 		}
 
 		return nil, nil
@@ -142,7 +142,17 @@ func (h *Handler) helpCommandCallback(args *Argument) error {
 		name = args.Arguments[0]
 	}
 
-	args.Reply(h.DoHelp(name))
+	help := h.DoHelp(name)
+
+	if strings.Contains(help, "\n") {
+		for _, l := range strings.Split(help, "\n") {
+			args.Reply(l)
+		}
+
+		return nil
+	}
+
+	args.Reply(help)
 
 	return nil
 }
@@ -172,7 +182,17 @@ func (h *Handler) DoHelp(commandName string) string {
 		return fmt.Sprintf("\x02%s\x02 does not exist, try %shelp", commandName, h.Prefix)
 	}
 
-	return fmt.Sprintf("Help for command \x02%s\x02: %s", commandName, cmd.help)
+	if !strings.Contains(cmd.help, "\n") {
+		return fmt.Sprintf("Help for command \x02%s\x02: %s", commandName, cmd.help)
+	}
+
+	out := &strings.Builder{}
+
+	for _, l := range strings.Split(cmd.help, "\n") {
+		out.WriteString(fmt.Sprintf("Help for \x02%s\x02: %s\n", commandName, l))
+	}
+
+	return out.String()
 }
 
 func (h *Handler) reply(target, message string) {
