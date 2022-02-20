@@ -205,15 +205,9 @@ func (h *Handler) replyf(target, format string, args ...interface{}) {
 	h.reply(target, fmt.Sprintf(format, args...))
 }
 
-func (h *Handler) executeCommandIfExists(
-	message, target, replyTarget string, sourceUser *user.EphemeralUser, currentNick string, ev *event.Message,
-) (outErr error) {
-	splitMsg := strings.Split(message, " ")
-
-	cmd, args := h.getCommand(splitMsg, currentNick)
-
+func (h *Handler) callOK(cmd *command, replyTarget string, sourceUser *user.EphemeralUser, args []string) bool {
 	if cmd == nil {
-		return nil
+		return false
 	}
 
 	if h.PermissionHandler != nil {
@@ -226,7 +220,7 @@ func (h *Handler) executeCommandIfExists(
 		if !allowed {
 			h.reply(replyTarget, "Access denied.")
 
-			return nil
+			return false
 		}
 	} else {
 		log.Debug("Permissions handler is nil. Skipping all permissions checks.")
@@ -235,6 +229,20 @@ func (h *Handler) executeCommandIfExists(
 	if cmd.requiredArgs != -1 && len(args) < cmd.requiredArgs {
 		h.replyf(replyTarget, "\x02%s\x02 Requires at least \x02%d\x02 arguments.", cmd.name, cmd.requiredArgs)
 
+		return false
+	}
+
+	return true
+}
+
+func (h *Handler) executeCommandIfExists(
+	message, target, replyTarget string, sourceUser *user.EphemeralUser, currentNick string, ev *event.Message,
+) (outErr error) {
+	splitMsg := strings.Split(message, " ")
+
+	cmd, args := h.getCommand(splitMsg, currentNick)
+
+	if !h.callOK(cmd, replyTarget, sourceUser, args) {
 		return nil
 	}
 
