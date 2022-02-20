@@ -75,6 +75,10 @@ func New(conf *Config, writeToIRC func(string, ...string) error, eventManager ev
 // Negotiate negotiates IRCv3 capabilities with a server, and optionally performs
 // sasl authentication
 func (n *Negotiator) Negotiate() {
+	if len(n.capabilities) == 0 {
+		// None to request, dont do anything
+		return
+	}
 	n.doNegotiation()
 
 	if err := n.doSasl(); err != nil {
