@@ -77,18 +77,12 @@ func (h *Handler) OnMessage(msg *event.Message) error {
 	message := msg.Raw.Params[len(msg.Raw.Params)-1]
 	messageTarget := msg.Raw.Params[0]
 
-	sourceUser := msg.SourceUser
-	if sourceUser == nil {
-		u := user.FromMessage(msg.Raw, msg.AvailableCaps)
-		sourceUser = &u
-	}
-
 	replyTarget := messageTarget
 	if replyTarget == msg.CurrentNick {
-		replyTarget = sourceUser.Name
+		replyTarget = msg.SourceUser.Name
 	}
 
-	return h.executeCommandIfExists(message, messageTarget, replyTarget, sourceUser, msg.CurrentNick, msg)
+	return h.executeCommandIfExists(message, messageTarget, replyTarget, msg)
 }
 
 func (h *Handler) getCommand(splitMsg []string, currentNick string) (cmd *command, args []string) {
@@ -236,13 +230,13 @@ func (h *Handler) callOK(cmd *command, replyTarget string, sourceUser *user.Ephe
 }
 
 func (h *Handler) executeCommandIfExists(
-	message, target, replyTarget string, sourceUser *user.EphemeralUser, currentNick string, ev *event.Message,
+	message, target, replyTarget string, ev *event.Message,
 ) (outErr error) {
 	splitMsg := strings.Split(message, " ")
 
-	cmd, args := h.getCommand(splitMsg, currentNick)
+	cmd, args := h.getCommand(splitMsg, ev.CurrentNick)
 
-	if !h.callOK(cmd, replyTarget, sourceUser, args) {
+	if !h.callOK(cmd, replyTarget, ev.SourceUser, args) {
 		return nil
 	}
 
@@ -250,8 +244,6 @@ func (h *Handler) executeCommandIfExists(
 		CommandName: cmd.name,
 		Arguments:   args,
 		Event:       ev,
-		SourceUser:  sourceUser,
-		CurrentNick: currentNick,
 		Target:      target,
 		Reply:       func(msg string) { h.reply(replyTarget, msg) },
 	}
@@ -268,7 +260,7 @@ func (h *Handler) executeCommandIfExists(
 		}
 	}()
 
-	log.Infof("Executing command %q for user %s", cmd.name, sourceUser.Mask())
+	log.Infof("Executing command %q for user %s", cmd.name, ev.SourceUser.Mask())
 
 	if err := cmd.callback(argsToSend); err != nil {
 		log.Errorf("Error while running command %q's callback: %s", cmd.name, err)

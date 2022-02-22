@@ -13,11 +13,9 @@ type Argument struct {
 	CommandName string
 	Arguments   []string
 
-	Event       *event.Message
-	SourceUser  *user.EphemeralUser
-	CurrentNick string
-	Target      string
-	Reply       func(string)
+	Event  *event.Message
+	Target string
+	Reply  func(string)
 }
 
 // ArgString returns the arguments as a space joined string
@@ -28,4 +26,14 @@ func (a *Argument) ArgString() string {
 // Replyf is a thin wrapper around reply that allows for easy printf formatting of replies
 func (a *Argument) Replyf(format string, args ...interface{}) {
 	a.Reply(fmt.Sprintf(format, args...))
+}
+
+// SourceUser is a shortcut to event.SourceUser. It will be inlined
+func (a *Argument) SourceUser() *user.EphemeralUser {
+	return a.Event.SourceUser
+}
+
+// CurrentNick is a shortcut to event.CurrentNick. It will be inlined
+func (a *Argument) CurrentNick() string {
+	return a.Event.CurrentNick
 }
