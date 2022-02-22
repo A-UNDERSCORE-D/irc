@@ -49,9 +49,9 @@ type EphemeralUser struct {
 // FromMessage creates an EphemeralUser instance from a message.
 // It will make use of various tags, if offered, to add more information to
 // the struct
-func FromMessage(msg *ircmsg.Message, availableCaps []capab.Capability) EphemeralUser {
+func FromMessage(msg *ircmsg.Message, availableCaps []capab.Capability) *EphemeralUser {
 	nuh, _ := ircmsg.ParseNUH(msg.Source)
-	out := EphemeralUser{
+	out := &EphemeralUser{
 		User: User{NUH: nuh},
 	}
 

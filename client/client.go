@@ -143,24 +143,24 @@ loop:
 
 			ev := &event.Message{
 				Raw:           line,
-				SourceUser:    &sourceUser,
+				SourceUser:    sourceUser,
 				AvailableCaps: c.capabilities.AvailableCaps(),
 			}
 
 			if err := c.internalEvents.OnMessage(ev); err != nil {
-				log.Criticalf("Error during internal handling of %q: %s", ev.Raw, err)
+				log.Criticalf("Error during internal handling of %v: %s", ev.Raw, err)
 			}
 
 			pubEv := &event.Message{
 				Raw:           line,
-				SourceUser:    &sourceUser,
+				SourceUser:    sourceUser,
 				CurrentNick:   c.CurrentNick(),
 				AvailableCaps: c.capabilities.AvailableCaps(),
 			}
 
 			if clientHandler != nil {
 				if err := clientHandler.OnMessage(pubEv); err != nil {
-					log.Warningf("Error during client handling of %q: %s", ev.Raw, err)
+					log.Warningf("Error during client handling of %v: %s", ev.Raw, err)
 				}
 			}
 
