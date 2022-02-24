@@ -178,3 +178,15 @@ func (c *Client) WriteIRC(command string, params ...string) error {
 
 	return nil
 }
+
+// Write implements io.Writer. See WriteIRC for a nicer frontend for creating IRC lines
+func (c *Client) Write(data []byte) (int, error) {
+	//nolint:wrapcheck // Its still me.
+	return c.connection.Write(data)
+}
+
+// WriteString implements io.StringWriter. See WriteIRC for a nicer frontend
+func (c *Client) WriteString(s string) (int, error) {
+	//nolint:wrapcheck // Its still me.
+	return c.connection.WriteString(s)
+}
