@@ -29,6 +29,7 @@ type Handler struct {
 // AddCommand errors
 var (
 	ErrCmdExists      = errors.New("command exists")
+	ErrCmdNoExist     = errors.New("command does not exist")
 	ErrInvalidCmdName = errors.New("invalid command name")
 	ErrNoHelp         = errors.New("cannot add a command with no help message")
 )
@@ -39,7 +40,7 @@ func (h *Handler) AddCommand(
 ) error {
 	name = strings.ToUpper(strings.TrimSpace(name))
 	if name == "" || strings.ContainsAny(name, " ") {
-		return fmt.Errorf("%w: invalid command name: %q", ErrInvalidCmdName, name)
+		return fmt.Errorf("%w: %q", ErrInvalidCmdName, name)
 	}
 
 	upperName := strings.ToUpper(name)
@@ -65,6 +66,24 @@ func (h *Handler) AddCommand(
 
 	h.callbacks[upperName] = c
 
+	return nil
+}
+
+func (h *Handler) RemoveCommand(name string) error {
+	name = strings.ToUpper(strings.TrimSpace(name))
+	if name == "" {
+		return fmt.Errorf("%w: %q", ErrInvalidCmdName, name)
+	}
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	_, exists := h.callbacks[name]
+	if !exists {
+		return fmt.Errorf("%w: %q", ErrCmdNoExist, name)
+	}
+
+	delete(h.callbacks, name)
 	return nil
 }
 

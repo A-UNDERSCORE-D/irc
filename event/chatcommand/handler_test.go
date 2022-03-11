@@ -411,3 +411,44 @@ func TestHandler_callOK(t *testing.T) {
 		})
 	}
 }
+
+func TestHandler_RemoveCommand(t *testing.T) {
+	t.Parallel()
+	h := &Handler{
+		Prefix:            "~",
+		MessageFunc:       func(string, string) error { panic("not implemented") },
+		PermissionHandler: nil,
+	}
+
+	callCount := 0
+
+	ev := &event.Message{
+		SourceUser: &user.EphemeralUser{
+			User: user.User{NUH: ircmsg.NUH{Name: "a", User: "b", Host: "c"}},
+		},
+		CurrentNick:   "test",
+		AvailableCaps: nil,
+	}
+
+	h.AddCommand("test", "test", nil, -1, func(a *Argument) error { callCount++; return nil })
+
+	if err := h.executeCommandIfExists("~test", "a", "b", ev); err != nil {
+		t.Errorf("Handler.RemoveCommand() returned error from callback: %s", err)
+	}
+
+	if callCount != 1 {
+		t.Error("Handler.RemoveCommand() callback did not correctly fire")
+	}
+
+	if err := h.RemoveCommand("test"); err != nil {
+		t.Errorf("Handler.RemoveCommand() failed to remove command: %s", err)
+	}
+
+	if err := h.executeCommandIfExists("~test", "a", "b", ev); err != nil {
+		t.Errorf("Handler.RemoveCommand() running removed command errored: %s", err)
+	}
+
+	if callCount != 1 {
+		t.Errorf("Handler.RemoveCommand() running removed command executed callback (%d)", callCount)
+	}
+}
