@@ -21,7 +21,7 @@ func (c *Client) Stop(message string) {
 	c.connection.Stop(message)
 }
 
-const maxMessageLength = 450
+const maxMessageLength = 400
 
 // SendMessage sends a PRIVMSG to the given target with the given message.
 func (c *Client) SendMessage(target, message string) error {
@@ -33,7 +33,7 @@ func (c *Client) SendMessage(target, message string) error {
 //
 // This is mostly intended for use with things like chatcommand.Handler that dont know how long their messages
 // will be. If you can, you likely want to do this manually, as the chunking this uses is not intelligent at all.
-func (c *Client) SendMessageChunked(message, target string) error {
+func (c *Client) SendMessageChunked(target, message string) error {
 	for _, l := range util.ChunkMessage(message, maxMessageLength) {
 		if err := c.SendMessage(target, l); err != nil {
 			return err
